@@ -1,3 +1,5 @@
+// Status constants for the Kanban board columns
+// Using "as const" creates a union type from the object values
 export const TaskStatus = {
   BACKLOG: 'BACKLOG',
   TODO: 'TODO',
@@ -8,6 +10,7 @@ export const TaskStatus = {
 
 export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
 
+// Available technology tags for categorizing tasks
 export const TaskTag = {
   ANDROID: 'ANDROID',
   IOS: 'IOS',
@@ -18,6 +21,7 @@ export const TaskTag = {
 
 export type TaskTag = (typeof TaskTag)[keyof typeof TaskTag];
 
+// User profile returned by the API
 export interface User {
   id: string;
   avatar: string;
@@ -28,6 +32,7 @@ export interface User {
   updatedAt: string;
 }
 
+// A single task displayed on the board or list view
 export interface Task {
   id: string;
   name: string;
@@ -40,6 +45,7 @@ export interface Task {
   createdAt: string;
 }
 
+// Shape of the data sent when creating a new task
 export interface CreateTaskInput {
   name: string;
   status: TaskStatus;
@@ -49,11 +55,14 @@ export interface CreateTaskInput {
   assigneeId: string;
 }
 
+// Shape of the data sent when updating an existing task
+// All fields are optional except `id` (we only send what changed)
 export interface UpdateTaskInput extends Partial<CreateTaskInput> {
   id: string;
   position?: number;
 }
 
+// Optional filters that can be applied to the task list
 export type FilterInput = {
   name?: string;
   dueDate?: string;

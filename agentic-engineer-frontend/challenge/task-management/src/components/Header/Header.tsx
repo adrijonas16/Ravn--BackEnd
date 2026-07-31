@@ -1,42 +1,39 @@
-import { Bell } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
-import styles from './Header.module.css';
+import { Search, Bell } from 'lucide-react';
 
-/*
-  REACT CONCEPT: useLocation (React Router Hook)
-  -------------------------------------------------
-  useLocation nos da info de la URL actual.
-  Lo usamos para mostrar el título dinámico del header.
-*/
+interface HeaderProps {
+  onMenuClick?: () => void;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+}
 
-const PAGE_TITLES: Record<string, string> = {
-  '/': 'Dashboard',
-  '/settings': 'Settings',
-  '/my-tasks': 'My Tasks',
-  '/team': 'Team',
-  '/analytics': 'Analytics',
-};
-
-export function Header() {
-  const location = useLocation();
-  const title = PAGE_TITLES[location.pathname] ?? 'Page';
-
+// Top bar with search input, notification bell, and user avatar
+// The search input is controlled by the parent and updates the global filter
+export function Header({ onMenuClick, searchValue, onSearchChange }: HeaderProps) {
   return (
-    <header className={styles.header}>
-      <div className={styles.left}>
-        <h1 className={styles.title}>{title}</h1>
+    <header className="header">
+      <div className="header__search">
+        <Search size={18} className="header__search-icon" />
+        <input
+          className="header__search-input"
+          type="text"
+          placeholder="Search"
+          aria-label="Search tasks"
+          value={searchValue ?? ''}
+          onChange={(e) => onSearchChange?.(e.target.value)}
+        />
       </div>
 
-      <div className={styles.right}>
-        <button className={styles.iconButton} aria-label="Notifications">
+      <div className="header__actions">
+        <button type="button" className="header__icon-btn" aria-label="Notifications">
           <Bell size={20} />
         </button>
-
-        <img
-          className={styles.avatar}
-          src="https://i.pravatar.cc/150?u=currentuser"
-          alt="Profile"
-        />
+        <button type="button" className="header__avatar-btn" onClick={onMenuClick} aria-label="Menu">
+          <img
+            className="header__avatar"
+            src="https://i.pravatar.cc/150?u=currentuser"
+            alt="Profile"
+          />
+        </button>
       </div>
     </header>
   );

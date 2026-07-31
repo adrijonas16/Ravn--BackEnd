@@ -1,9 +1,8 @@
 import { memo, useState, useEffect, useRef } from 'react';
-import { MoreHorizontal, Clock, MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Clock, Paperclip, GitBranch, MessageCircle, Pencil, Trash2 } from 'lucide-react';
 import type { Task } from '../../types/task';
 import { formatDate, getDateColor, getPointLabel } from '../../utils/date';
 import { getTagLabel, getTagClassName } from '../../utils/tags';
-import styles from './TaskCard.module.css';
 
 interface TaskCardProps {
   task: Task;
@@ -12,16 +11,27 @@ interface TaskCardProps {
   onDelete: (taskId: string) => void;
 }
 
-/*
-  React.memo previene re-renders innecesarios.
-  Si las props no cambiaron, React reutiliza el render anterior.
-  Importante en listas: sin memo, cambiar UNA tarea re-renderiza TODAS las cards.
-*/
+// Pure function: doesn't use component state, so it's defined outside to avoid re-creation on each render
+function handleDragEnd(e: React.DragEvent) {
+  (e.currentTarget as HTMLElement).classList.remove('task-card--dragging');
+}
+
+// Individual task card displayed in the Kanban board columns
+// Wrapped in memo() to skip re-renders when props haven't changed
 export const TaskCard = memo(function TaskCard({ task, index, onEdit, onDelete }: TaskCardProps) {
+  // handleDragStart needs access to task.id, so it must stay inside the component
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('application/task-id', task.id);
+    e.dataTransfer.effectAllowed = 'move';
+    (e.currentTarget as HTMLElement).classList.add('task-card--dragging');
+  };
+
+  // Context menu state (3-dot options button)
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const dateColor = getDateColor(task.dueDate);
 
+  // Close the menu when clicking outside of it
   useEffect(() => {
     if (!menuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
@@ -35,71 +45,74 @@ export const TaskCard = memo(function TaskCard({ task, index, onEdit, onDelete }
 
   return (
     <article
-      className={styles.card}
+      className="task-card"
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       style={{ '--stagger-delay': `${index * 50}ms` } as React.CSSProperties}
     >
-      <div className={styles.cardHeader}>
-        <h3 className={styles.cardTitle}>{task.name}</h3>
-        <div className={styles.menuWrapper} ref={menuRef}>
+      <div className="task-card__header">
+        <h3 className="task-card__title">{task.name}</h3>
+        <div className="task-card__menu-wrapper" ref={menuRef}>
           <button
-            className={`${styles.optionsButton} ${menuOpen ? styles.menuVisible : ''}`}
+            type="button"
+            className={`task-card__options-btn${menuOpen ? ' task-card__options-btn--visible' : ''}`}
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label={`Options for ${task.name}`}
-            aria-expanded={menuOpen}
-            aria-haspopup="true"
           >
             <MoreHorizontal size={16} />
           </button>
-
           {menuOpen && (
-            <div className={styles.menu}>
+            <div className="task-card__menu">
               <button
-                className={styles.menuItem}
+                type="button"
+                className="task-card__menu-item"
                 onClick={() => { setMenuOpen(false); onEdit(task); }}
               >
-                <Pencil size={14} />
-                Edit
+                <Pencil size={14} /> Edit
               </button>
               <button
-                className={`${styles.menuItem} ${styles.menuItemDanger}`}
+                type="button"
+                className="task-card__menu-item task-card__menu-item--danger"
                 onClick={() => { setMenuOpen(false); onDelete(task.id); }}
               >
-                <Trash2 size={14} />
-                Delete
+                <Trash2 size={14} /> Delete
               </button>
             </div>
           )}
         </div>
       </div>
 
-      <div className={styles.tags}>
+      <div className="task-card__points-row">
+        <span className="task-card__points">{getPointLabel(task.pointEstimate)}</span>
+        <span className={`task-card__date task-card__date--${dateColor}`}>
+          <Clock size={13} />
+          {formatDate(task.dueDate)}
+        </span>
+      </div>
+
+      <div className="task-card__tags">
         {task.tags.map((tag) => (
-          <span key={tag} className={`${styles.tag} ${styles[getTagClassName(tag)]}`}>
-            {getTagLabel(tag)}
+          <span key={tag} className={`task-card__tag task-card__tag--${getTagClassName(tag)}`}>
+            {getTagLabel(tag).toUpperCase()}
           </span>
         ))}
       </div>
 
-      <div className={styles.cardFooter}>
-        <div className={styles.meta}>
-          <span className={`${styles.dueDate} ${styles[dateColor]}`}>
-            <Clock size={14} />
-            {formatDate(task.dueDate)}
-          </span>
-          <span className={styles.points}>
-            <MessageSquare size={14} />
-            {getPointLabel(task.pointEstimate)}
-          </span>
-        </div>
-
+      <div className="task-card__footer">
         {task.assignee && (
           <img
-            className={styles.assigneeAvatar}
+            className="task-card__avatar"
             src={task.assignee.avatar}
             alt={task.assignee.fullName}
             title={task.assignee.fullName}
           />
         )}
+        <div className="task-card__stats">
+          <span className="task-card__stat"><Paperclip size={14} /></span>
+          <span className="task-card__stat">5 <GitBranch size={14} /></span>
+          <span className="task-card__stat">3 <MessageCircle size={14} /></span>
+        </div>
       </div>
     </article>
   );

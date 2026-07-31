@@ -1,37 +1,19 @@
 import { useState, useCallback, useMemo } from 'react';
-import type { Task, CreateTaskInput, UpdateTaskInput, FilterInput } from '../types/task';
+import type { Task, CreateTaskInput, UpdateTaskInput } from '../types/task';
 import { mockTasks, mockUsers } from '../mocks/data';
+import { useFilters } from '../context/FilterContext';
 
-/*
-  REACT CONCEPT: Custom Hooks
-  ------------------------------
-  Un custom hook es una función que empieza con "use" y puede
-  usar otros hooks dentro. Nos permite extraer lógica de estado
-  reutilizable fuera de los componentes.
-
-  useTasks encapsula toda la lógica CRUD de tareas.
-  Cualquier componente que lo use obtiene las mismas funciones.
-
-  REACT CONCEPT: useCallback
-  ----------------------------
-  useCallback memoriza una función para que no se re-cree
-  en cada render. Útil cuando pasamos funciones como props
-  a componentes hijo (evita re-renders innecesarios).
-
-  REACT CONCEPT: useMemo
-  ------------------------
-  useMemo memoriza un valor computado. Solo se recalcula
-  cuando cambian sus dependencias. Aquí lo usamos para
-  filtrar tareas sin recalcular en cada render.
-*/
-
+// Custom hook that encapsulates all CRUD operations for tasks
+// Returns the filtered task list plus create, update, and delete functions
+// Uses useCallback to memoize handlers and useMemo to avoid re-filtering on every render
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>(mockTasks);
-  const [filters, setFilters] = useState<FilterInput>({});
+  const { filters, setFilters, clearFilters } = useFilters();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Filtrar tareas según los filtros activos
+  // Filter tasks based on the active filters (name, status, tags, points, owner, date)
+  // useMemo ensures this only recalculates when `tasks` or `filters` change
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
       if (filters.name && !task.name.toLowerCase().includes(filters.name.toLowerCase())) {
@@ -59,6 +41,7 @@ export function useTasks() {
     });
   }, [tasks, filters]);
 
+  // Create a new task and prepend it to the list
   const createTask = useCallback((input: CreateTaskInput) => {
     setLoading(true);
     setError(null);
@@ -85,6 +68,7 @@ export function useTasks() {
     }
   }, []);
 
+  // Update an existing task by merging only the changed fields
   const updateTask = useCallback((input: UpdateTaskInput) => {
     setLoading(true);
     setError(null);
@@ -116,6 +100,7 @@ export function useTasks() {
     }
   }, []);
 
+  // Remove a task from the list by its ID
   const deleteTask = useCallback((taskId: string) => {
     setLoading(true);
     setError(null);
@@ -128,10 +113,6 @@ export function useTasks() {
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const clearFilters = useCallback(() => {
-    setFilters({});
   }, []);
 
   return {

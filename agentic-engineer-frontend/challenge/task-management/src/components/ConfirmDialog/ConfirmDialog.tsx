@@ -1,14 +1,6 @@
 import { Modal } from '../Modal';
-import styles from './ConfirmDialog.module.css';
 
-/*
-  REACT CONCEPT: Reusable Components
-  -------------------------------------
-  ConfirmDialog reutiliza Modal (composición).
-  Es genérico: no sabe si está confirmando un delete
-  o cualquier otra acción. Solo muestra un mensaje
-  y dos botones.
-*/
+// Reusable confirmation dialog for destructive actions (e.g. deleting a task)
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -30,18 +22,20 @@ export function ConfirmDialog({
   variant = 'default',
 }: ConfirmDialogProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title}>
-      <p className={styles.message}>{message}</p>
-      <div className={styles.actions}>
-        <button className={styles.cancelButton} onClick={onClose}>
-          Cancel
-        </button>
-        <button
-          className={`${styles.confirmButton} ${variant === 'danger' ? styles.danger : ''}`}
-          onClick={onConfirm}
-        >
-          {confirmLabel}
-        </button>
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div className="confirm-dialog">
+        <h2 className="confirm-dialog__title">{title}</h2>
+        <p className="confirm-dialog__message">{message}</p>
+        <div className="confirm-dialog__actions">
+          <button type="button" className="confirm-dialog__cancel-btn" onClick={onClose}>Cancel</button>
+          <button
+            type="button"
+            className={`confirm-dialog__confirm-btn${variant === 'danger' ? ' confirm-dialog__confirm-btn--danger' : ''}`}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
       </div>
     </Modal>
   );

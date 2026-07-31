@@ -1,57 +1,54 @@
 import { NavLink } from 'react-router-dom';
-import {
-  LayoutDashboard,
-  Settings,
-  Users,
-  BarChart3,
-  Folder,
-} from 'lucide-react';
-import styles from './Sidebar.module.css';
+import { LayoutGrid, List } from 'lucide-react';
 
-/*
-  REACT CONCEPT: Components & JSX
-  ---------------------------------
-  Un componente es una función que retorna JSX (HTML-like syntax).
-  JSX se transforma en React.createElement() calls.
+interface SidebarProps {
+  open?: boolean;
+  onClose?: () => void;
+}
 
-  REACT CONCEPT: NavLink (React Router)
-  ---------------------------------
-  NavLink es como <a> pero para SPA routing.
-  Recibe una función en className que indica si está activo.
-*/
-
+// Navigation items rendered in the sidebar menu
 const NAV_ITEMS = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/my-tasks', icon: Folder, label: 'My Tasks' },
-  { to: '/team', icon: Users, label: 'Team' },
-  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/', icon: LayoutGrid, label: 'DASHBOARD' },
+  { to: '/my-tasks', icon: List, label: 'MY TASK' },
 ];
 
-export function Sidebar() {
+// Sidebar component with responsive behavior:
+// - Desktop: always visible as a fixed column
+// - Mobile: slides in as a drawer with an overlay backdrop
+export function Sidebar({ open, onClose }: SidebarProps) {
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.logo}>
-        <div className={styles.logoIcon}>
-          <LayoutDashboard size={24} />
-        </div>
-        <span className={styles.logoText}>Task Manager</span>
-      </div>
+    <>
+      {/* Overlay for mobile drawer */}
+      {open && (
+        <div
+          className="sidebar-overlay"
+          onClick={onClose}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClose?.(); }}
+          role="presentation"
+        />
+      )}
 
-      <nav className={styles.nav}>
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `${styles.navItem} ${isActive ? styles.active : ''}`
-            }
-          >
-            <item.icon size={20} />
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
-    </aside>
+      <aside className={`sidebar${open ? ' sidebar--open' : ''}`}>
+        <div className="sidebar__logo">
+          <img className="sidebar__logo-img" src="/ravn-logo.png" alt="RAVN" />
+        </div>
+
+        <nav className="sidebar__nav">
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `sidebar__nav-item${isActive ? ' sidebar__nav-item--active' : ''}`
+              }
+              onClick={onClose}
+            >
+              <item.icon size={18} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+    </>
   );
 }

@@ -1,56 +1,39 @@
-import { useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
-import styles from './Modal.module.css';
-
-/*
-  REACT CONCEPT: useEffect
-  --------------------------
-  useEffect ejecuta side-effects después del render.
-  Aquí lo usamos para:
-  1. Bloquear el scroll del body cuando el modal está abierto
-  2. Cerrar el modal con Escape
-
-  REACT CONCEPT: useRef
-  -----------------------
-  useRef nos da una referencia mutable que persiste entre renders.
-  Lo usamos para acceder al DOM directamente (el overlay del modal)
-  sin causar re-renders.
-
-  REACT CONCEPT: children (Composition)
-  ----------------------------------------
-  El prop especial "children" permite que un componente
-  envuelva cualquier contenido. Esto es composición pura:
-  Modal no sabe qué va adentro, solo provee la estructura.
-*/
+import { useEffect, useRef, useCallback } from 'react';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title: string;
   children: React.ReactNode;
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+// Reusable modal dialog with overlay backdrop
+// Closes on Escape key or clicking outside the dialog
+// Locks body scroll while open to prevent background scrolling
+export function Modal({ isOpen, onClose, children }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  // Keep a ref to the latest onClose so the Escape listener doesn't go stale
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  const stableClose = useCallback(() => {
+    onCloseRef.current();
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
-
-    // Bloquear scroll del body
     document.body.style.overflow = 'hidden';
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') stableClose();
     };
     document.addEventListener('keydown', handleKeyDown);
-
-    // Cleanup: se ejecuta cuando el componente se desmonta
-    // o cuando isOpen cambia. Esto es el "teardown" del effect.
     return () => {
       document.body.style.overflow = '';
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, stableClose]);
 
   if (!isOpen) return null;
 
@@ -58,25 +41,21 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
     if (e.target === overlayRef.current) onClose();
   };
 
+  const handleOverlayKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') onClose();
+  };
+
   return (
     <div
-      className={styles.overlay}
+      className="modal-overlay"
       ref={overlayRef}
       onClick={handleOverlayClick}
+      onKeyDown={handleOverlayKeyDown}
+      role="presentation"
     >
-      <div className={styles.modal} role="dialog" aria-label={title}>
-        <div className={styles.header}>
-          <h2 className={styles.title}>{title}</h2>
-          <button
-            className={styles.closeButton}
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
-        <div className={styles.body}>{children}</div>
-      </div>
+      <dialog className="modal" open aria-label="Task dialog">
+        {children}
+      </dialog>
     </div>
   );
 }

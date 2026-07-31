@@ -1,12 +1,7 @@
 import { useState, useCallback } from 'react';
 
-/*
-  REACT CONCEPT: Custom Hook for UI State
-  ------------------------------------------
-  useToast maneja notificaciones temporales.
-  Demuestra cómo un custom hook puede encapsular
-  lógica de UI (mostrar/ocultar con timeout).
-*/
+// Custom hook for managing temporary notification toasts
+// Each toast auto-dismisses after 3 seconds
 
 export interface Toast {
   id: string;
@@ -17,6 +12,7 @@ export interface Toast {
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  // Add a toast and schedule its removal after 3 seconds
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     const id = String(Date.now());
     setToasts((prev) => [...prev, { id, message, type }]);

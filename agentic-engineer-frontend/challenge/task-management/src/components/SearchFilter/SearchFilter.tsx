@@ -1,93 +1,170 @@
-import type { FilterInput } from '../../types/task';
-import { TaskStatus } from '../../types/task';
+import { useState } from 'react';
+import { SlidersHorizontal, X } from 'lucide-react';
+import { TaskStatus, TaskTag } from '../../types/task';
 import { mockUsers } from '../../mocks/data';
-import styles from './SearchFilter.module.css';
+import { useFilters } from '../../context/FilterContext';
 
-/*
-  REACT CONCEPT: Controlled Inputs + Callbacks
-  -----------------------------------------------
-  Este componente recibe los filtros actuales como props
-  y notifica cambios al padre via onChange.
-  Es un patrón "controlled" donde el padre controla el estado.
-*/
+// Dropdown options for each filter type
+const STATUS_OPTIONS = [
+  { value: TaskStatus.BACKLOG, label: 'Backlog' },
+  { value: TaskStatus.TODO, label: 'To Do' },
+  { value: TaskStatus.IN_PROGRESS, label: 'In Progress' },
+  { value: TaskStatus.DONE, label: 'Done' },
+  { value: TaskStatus.CANCELLED, label: 'Cancelled' },
+];
 
-interface SearchFilterProps {
-  filters: FilterInput;
-  onChange: (filters: FilterInput) => void;
-  onClear: () => void;
-}
+const TAG_OPTIONS = [
+  { value: TaskTag.REACT, label: 'React' },
+  { value: TaskTag.ANDROID, label: 'Android' },
+  { value: TaskTag.IOS, label: 'iOS' },
+  { value: TaskTag.NODE_JS, label: 'Node.js' },
+  { value: TaskTag.RAILS, label: 'Rails' },
+];
 
-const POINT_OPTIONS = ['ZERO', 'ONE', 'TWO', 'FOUR', 'EIGHT'];
+const POINT_OPTIONS = [
+  { value: 'ZERO', label: '0 Points' },
+  { value: 'ONE', label: '1 Point' },
+  { value: 'TWO', label: '2 Points' },
+  { value: 'FOUR', label: '4 Points' },
+  { value: 'EIGHT', label: '8 Points' },
+];
 
-export function SearchFilter({ filters, onChange, onClear }: SearchFilterProps) {
-  const hasFilters = Object.values(filters).some(
-    (v) => v !== undefined && v !== '' && (!Array.isArray(v) || v.length > 0),
-  );
+// Collapsible filter panel with status, assignee, date, points, and tag filters
+// All filter changes are synced to the global FilterContext
+export function SearchFilter() {
+  const { filters, setFilters, clearFilters } = useFilters();
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Check if any advanced filter is active (used to show/hide the "Clear" button)
+  const hasAdvancedFilters = filters.status !== undefined
+    || (filters.tags && filters.tags.length > 0)
+    || filters.pointEstimate !== undefined
+    || filters.ownerId !== undefined
+    || filters.dueDate !== undefined;
+
+  const handleStatusChange = (value: string) => {
+    setFilters({ ...filters, status: value ? (value as TaskStatus) : undefined });
+  };
+
+  const handleTagToggle = (tag: TaskTag) => {
+    const currentTags = filters.tags ?? [];
+    const newTags = currentTags.includes(tag)
+      ? currentTags.filter((t) => t !== tag)
+      : [...currentTags, tag];
+    setFilters({ ...filters, tags: newTags.length > 0 ? newTags : undefined });
+  };
+
+  const handleOwnerChange = (value: string) => {
+    setFilters({ ...filters, ownerId: value || undefined });
+  };
+
+  const handleDueDateChange = (value: string) => {
+    setFilters({ ...filters, dueDate: value || undefined });
+  };
+
+  const handlePointsChange = (value: string) => {
+    setFilters({ ...filters, pointEstimate: value || undefined });
+  };
 
   return (
-    <div className={styles.filterBar}>
-      <input
-        className={styles.searchInput}
-        type="text"
-        placeholder="Search by name..."
-        value={filters.name ?? ''}
-        onChange={(e) => onChange({ ...filters, name: e.target.value || undefined })}
-      />
-
-      <select
-        className={styles.select}
-        value={filters.status ?? ''}
-        onChange={(e) =>
-          onChange({ ...filters, status: (e.target.value as TaskStatus) || undefined })
-        }
-      >
-        <option value="">All Status</option>
-        {Object.values(TaskStatus).map((s) => (
-          <option key={s} value={s}>
-            {s.replace('_', ' ')}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className={styles.select}
-        value={filters.pointEstimate ?? ''}
-        onChange={(e) =>
-          onChange({ ...filters, pointEstimate: e.target.value || undefined })
-        }
-      >
-        <option value="">All Points</option>
-        {POINT_OPTIONS.map((p) => (
-          <option key={p} value={p}>{p}</option>
-        ))}
-      </select>
-
-      <select
-        className={styles.select}
-        value={filters.ownerId ?? ''}
-        onChange={(e) =>
-          onChange({ ...filters, ownerId: e.target.value || undefined })
-        }
-      >
-        <option value="">All Assignees</option>
-        {mockUsers.map((u) => (
-          <option key={u.id} value={u.id}>{u.fullName}</option>
-        ))}
-      </select>
-
-      <input
-        className={styles.dateInput}
-        type="date"
-        value={filters.dueDate ?? ''}
-        onChange={(e) =>
-          onChange({ ...filters, dueDate: e.target.value || undefined })
-        }
-      />
-
-      {hasFilters && (
-        <button className={styles.clearButton} onClick={onClear}>
-          Clear
+    <div className="search-filter">
+      <div className="search-filter__bar">
+        <button
+          type="button"
+          className={`search-filter__toggle ${showFilters ? 'search-filter__toggle--active' : ''}`}
+          onClick={() => setShowFilters(!showFilters)}
+          aria-label="Toggle filters"
+        >
+          <SlidersHorizontal size={16} />
+          <span>Filters</span>
         </button>
+        {hasAdvancedFilters && (
+          <button
+            type="button"
+            className="search-filter__clear"
+            onClick={() => { clearFilters(); setShowFilters(false); }}
+          >
+            <X size={14} /> Clear
+          </button>
+        )}
+      </div>
+
+      {showFilters && (
+        <div className="search-filter__panel">
+          <div className="search-filter__group">
+            <label className="search-filter__label" htmlFor="filter-status">Status</label>
+            <select
+              id="filter-status"
+              className="search-filter__select"
+              value={filters.status ?? ''}
+              onChange={(e) => handleStatusChange(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="search-filter__group">
+            <label className="search-filter__label" htmlFor="filter-assignee">Assignee</label>
+            <select
+              id="filter-assignee"
+              className="search-filter__select"
+              value={filters.ownerId ?? ''}
+              onChange={(e) => handleOwnerChange(e.target.value)}
+            >
+              <option value="">All assignees</option>
+              {mockUsers.map((user) => (
+                <option key={user.id} value={user.id}>{user.fullName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="search-filter__group">
+            <label className="search-filter__label" htmlFor="filter-duedate">Due Date</label>
+            <input
+              id="filter-duedate"
+              type="date"
+              className="search-filter__date"
+              value={filters.dueDate ?? ''}
+              onChange={(e) => handleDueDateChange(e.target.value)}
+            />
+          </div>
+
+          <div className="search-filter__group">
+            <label className="search-filter__label" htmlFor="filter-points">Points</label>
+            <select
+              id="filter-points"
+              className="search-filter__select"
+              value={filters.pointEstimate ?? ''}
+              onChange={(e) => handlePointsChange(e.target.value)}
+            >
+              <option value="">All points</option>
+              {POINT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <fieldset className="search-filter__group">
+            <legend className="search-filter__label">Tags</legend>
+            <div className="search-filter__tags">
+              {TAG_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`search-filter__tag-btn ${
+                    filters.tags?.includes(opt.value) ? 'search-filter__tag-btn--active' : ''
+                  }`}
+                  onClick={() => handleTagToggle(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        </div>
       )}
     </div>
   );

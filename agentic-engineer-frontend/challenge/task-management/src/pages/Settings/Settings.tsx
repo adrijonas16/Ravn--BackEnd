@@ -1,49 +1,33 @@
 import { mockUsers } from '../../mocks/data';
-import styles from './Settings.module.css';
 
-/*
-  REACT CONCEPT: Simple Component
-  ---------------------------------
-  Este componente muestra la info del usuario.
-  Por ahora usa mock data. Luego conectaremos
-  la query "profile" de GraphQL.
-*/
-
+// Settings page showing the current user's profile information
+// Uses mock data for now; will use the `profile` GraphQL query once connected to the API
 export function Settings() {
-  const user = mockUsers[0]; // Simula el usuario logueado
+  const user = mockUsers[0];
 
   return (
-    <div className={styles.settings}>
-      <h1 className={styles.title}>Settings</h1>
-
-      <div className={styles.profileCard}>
-        <img className={styles.avatar} src={user.avatar} alt={user.fullName} />
-
-        <div className={styles.info}>
-          <div className={styles.field}>
-            <label className={styles.label}>Full Name</label>
-            <p className={styles.value}>{user.fullName}</p>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Email</label>
-            <p className={styles.value}>{user.email}</p>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Type</label>
-            <p className={styles.value}>{user.type}</p>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Created At</label>
-            <p className={styles.value}>
-              {new Date(user.createdAt).toLocaleDateString()}
-            </p>
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Updated At</label>
-            <p className={styles.value}>
-              {new Date(user.updatedAt).toLocaleDateString()}
-            </p>
-          </div>
+    <div className="settings">
+      <h1 className="settings__title">Settings</h1>
+      <div className="settings__card">
+        <div className="settings__row">
+          <span className="settings__label">Full Name</span>
+          <span className="settings__value">{user.fullName}</span>
+        </div>
+        <div className="settings__row">
+          <span className="settings__label">Email</span>
+          <span className="settings__value">{user.email}</span>
+        </div>
+        <div className="settings__row">
+          <span className="settings__label">Type</span>
+          <span className="settings__value">{user.type}</span>
+        </div>
+        <div className="settings__row">
+          <span className="settings__label">Created At</span>
+          <span className="settings__value">{new Date(user.createdAt).toLocaleDateString()}</span>
+        </div>
+        <div className="settings__row">
+          <span className="settings__label">Updated At</span>
+          <span className="settings__value">{new Date(user.updatedAt).toLocaleDateString()}</span>
         </div>
       </div>
     </div>

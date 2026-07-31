@@ -1,52 +1,80 @@
+import { useState } from 'react';
 import type { Task } from '../../types/task';
 import { TaskStatus } from '../../types/task';
 import { TaskCard } from '../TaskCard';
-import styles from './TaskColumn.module.css';
 
 interface TaskColumnProps {
   status: TaskStatus;
   tasks: Task[];
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => void;
+  onMoveTask?: (taskId: string, newStatus: TaskStatus) => void;
 }
 
-const STATUS_CONFIG: Record<TaskStatus, { label: string; colorVar: string }> = {
-  [TaskStatus.BACKLOG]: { label: 'Backlog', colorVar: 'var(--color-col-backlog)' },
-  [TaskStatus.TODO]: { label: 'To Do', colorVar: 'var(--color-col-todo)' },
-  [TaskStatus.IN_PROGRESS]: { label: 'In Progress', colorVar: 'var(--color-col-inprogress)' },
-  [TaskStatus.DONE]: { label: 'Done', colorVar: 'var(--color-col-done)' },
-  [TaskStatus.CANCELLED]: { label: 'Cancelled', colorVar: 'var(--color-col-cancelled)' },
+// Human-readable labels for each status column header
+const STATUS_LABELS: Record<string, string> = {
+  [TaskStatus.BACKLOG]: 'Backlog',
+  [TaskStatus.TODO]: 'To Do',
+  [TaskStatus.IN_PROGRESS]: 'In Progress',
+  [TaskStatus.DONE]: 'Done',
+  [TaskStatus.CANCELLED]: 'Cancelled',
 };
 
-export function TaskColumn({ status, tasks, onEdit, onDelete }: TaskColumnProps) {
+// Pure function: no state needed, so it lives outside the component to avoid re-creation
+function handleDragOver(e: React.DragEvent) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+// A single Kanban column that filters and renders tasks matching its status
+// Supports drag-and-drop: cards can be dragged between columns to change status
+export function TaskColumn({ status, tasks, onEdit, onDelete, onMoveTask }: TaskColumnProps) {
   const columnTasks = tasks.filter((task) => task.status === status);
-  const config = STATUS_CONFIG[status];
+  const label = STATUS_LABELS[status] ?? status;
+  const [dragOver, setDragOver] = useState(false);
+
+  // Highlight the column when a card is dragged over it
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setDragOver(false);
+  };
+
+  // Handle the drop: extract the task ID and update its status
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const taskId = e.dataTransfer.getData('application/task-id');
+    if (taskId && onMoveTask) {
+      onMoveTask(taskId, status);
+    }
+  };
 
   return (
-    <section className={styles.column}>
-      <div className={styles.columnHeader}>
-        <div
-          className={styles.statusDot}
-          style={{ backgroundColor: config.colorVar }}
-        />
-        <h2 className={styles.columnTitle}>{config.label}</h2>
-        <span className={styles.count}>{columnTasks.length}</span>
+    <section
+      className={`task-column${dragOver ? ' task-column--drag-over' : ''}`}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <div className="task-column__header">
+        <h2 className="task-column__title">
+          {label}{' '}
+          <span className="task-column__count">({String(columnTasks.length).padStart(2, '0')})</span>
+        </h2>
       </div>
 
-      <div className={styles.taskList}>
+      <div className="task-column__list">
         {columnTasks.length === 0 ? (
-          <div className={styles.empty}>
-            <p>No tasks</p>
-          </div>
+          <div className="task-column__empty"><p>No tasks</p></div>
         ) : (
           columnTasks.map((task, index) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              index={index}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
+            <TaskCard key={task.id} task={task} index={index} onEdit={onEdit} onDelete={onDelete} />
           ))
         )}
       </div>
