@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Plus, ChevronDown, MessageCircle, GitBranch } from 'lucide-react';
 import { ViewToggle } from '../../components/ViewToggle';
+import { SearchFilter } from '../../components/SearchFilter/SearchFilter';
 import { Modal } from '../../components/Modal';
 import { TaskForm } from '../../components/TaskForm';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -10,8 +11,9 @@ import { useToast } from '../../hooks/useToast';
 import { useCreateTask } from '../../hooks/useCreateTask';
 import type { Task, CreateTaskInput } from '../../types/task';
 import { TaskStatus } from '../../types/task';
-import { getPointLabel } from '../../utils/date';
+import { getPointLabel, getDateColor } from '../../utils/date';
 import { getTagLabel, getTagClassName } from '../../utils/tags';
+import { getAvatarUrl } from '../../utils/avatar';
 
 // Sections displayed as collapsible groups in the list view
 const SECTIONS = [
@@ -22,8 +24,13 @@ const SECTIONS = [
   { status: TaskStatus.CANCELLED, label: 'Cancelled' },
 ];
 
-// Accent colors for the left border of each task row (cycles through)
-const ROW_COLORS = ['#da584b', '#70b252', '#70b252', '#da584b', '#e5b454'];
+// Border color based on due date status (matches the date color coding)
+const DATE_BORDER_COLORS: Record<string, string> = {
+  green: '#70b252',
+  yellow: '#e5b454',
+  red: '#da584b',
+  default: '#94979a',
+};
 
 // Format date for the list view (simpler than the board view format)
 function formatListDate(dateString: string): string {
@@ -41,11 +48,12 @@ function formatListDate(dateString: string): string {
 // Alternative list/table view of tasks, grouped by status with collapsible sections
 // Clicking a row opens the edit form; same CRUD logic as Dashboard
 export function MyTasks() {
-  const { tasks, createTask, updateTask, deleteTask } = useTasks();
+  const { tasks, loading, error, createTask, updateTask, deleteTask } = useTasks();
   const { toasts, showToast, removeToast } = useToast();
 
   const { setOnCreate } = useCreateTask();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [tagPopup, setTagPopup] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
@@ -56,35 +64,35 @@ export function MyTasks() {
     setCollapsed((prev) => ({ ...prev, [status]: !prev[status] }));
   };
 
-  const handleCreate = (input: CreateTaskInput) => {
-    const result = createTask(input);
+  const handleCreate = async (input: CreateTaskInput) => {
+    const result = await createTask(input);
     if (result.success) {
       showToast('Task created successfully', 'success');
       setShowCreateForm(false);
     } else {
-      showToast('Failed to create task', 'error');
+      showToast(result.error ?? 'Failed to create task', 'error');
     }
   };
 
-  const handleUpdate = (input: CreateTaskInput) => {
+  const handleUpdate = async (input: CreateTaskInput) => {
     if (!editingTask) return;
-    const result = updateTask({ id: editingTask.id, ...input });
+    const result = await updateTask({ id: editingTask.id, ...input });
     if (result.success) {
       showToast('Task updated successfully', 'success');
       setEditingTask(null);
     } else {
-      showToast('Failed to update task', 'error');
+      showToast(result.error ?? 'Failed to update task', 'error');
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deletingTaskId) return;
-    const result = deleteTask(deletingTaskId);
+    const result = await deleteTask(deletingTaskId);
     if (result.success) {
       showToast('Task deleted successfully', 'success');
       setDeletingTaskId(null);
     } else {
-      showToast('Failed to delete task', 'error');
+      showToast(result.error ?? 'Failed to delete task', 'error');
     }
   };
 
@@ -96,6 +104,20 @@ export function MyTasks() {
           <Plus size={20} />
         </button>
       </div>
+
+      <SearchFilter />
+
+      {/* Show loading spinner while fetching tasks */}
+      {loading && tasks.length === 0 && (
+        <div className="loading-spinner"><div className="loading-spinner__circle" /></div>
+      )}
+
+      {/* Show error message if the query failed */}
+      {error && (
+        <div className="empty-results">
+          <p className="empty-results__text">Failed to load tasks: {error}</p>
+        </div>
+      )}
 
       <div className="task-table">
         <div className="task-table__header">
@@ -129,7 +151,7 @@ export function MyTasks() {
 
               {!isCollapsed &&
                 sectionTasks.map((task, index) => {
-                  const borderColor = ROW_COLORS[index % ROW_COLORS.length];
+                  const borderColor = DATE_BORDER_COLORS[getDateColor(task.dueDate)];
                   const dateText = formatListDate(task.dueDate);
                   const dateClass =
                     dateText === 'Yesterday' ? ' task-table__col-date--red'
@@ -151,24 +173,39 @@ export function MyTasks() {
                         <span className="task-table__row-task-name">{task.name}</span>
                         {task.tags.length > 0 && (
                           <span className="task-table__row-icons">
-                            <span className="task-table__row-icon">3 <MessageCircle size={12} /></span>
-                            <span className="task-table__row-icon">5 <GitBranch size={12} /></span>
+                            <span className="task-table__row-icon"><MessageCircle size={12} /></span>
+                            <span className="task-table__row-icon"><GitBranch size={12} /></span>
                           </span>
                         )}
                       </div>
                       <div className="task-table__col-tags">
-                        {task.tags.map((tag) => (
-                          <span key={tag} className={`task-table__tag task-table__tag--${getTagClassName(tag)}`}>{getTagLabel(tag)}</span>
-                        ))}
-                        {task.tags.length > 2 && (
-                          <span className="task-table__tag-more">+{task.tags.length - 2}</span>
+                        {task.tags.length > 0 && (
+                          <span className={`task-table__tag task-table__tag--${getTagClassName(task.tags[0])}`}>{getTagLabel(task.tags[0])}</span>
+                        )}
+                        {task.tags.length > 1 && (
+                          <div className="task-table__tag-more-wrapper">
+                            <span
+                              className="task-table__tag-more"
+                              onClick={(e) => { e.stopPropagation(); setTagPopup(tagPopup === task.id ? null : task.id); }}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setTagPopup(tagPopup === task.id ? null : task.id); } }}
+                            >+{task.tags.length - 1}</span>
+                            {tagPopup === task.id && (
+                              <div className="task-table__tag-popup">
+                                {task.tags.slice(1).map((tag) => (
+                                  <span key={tag} className={`task-table__tag task-table__tag--${getTagClassName(tag)}`}>{getTagLabel(tag)}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                       <div className="task-table__col-estimate">{getPointLabel(task.pointEstimate)}</div>
                       <div className="task-table__col-assignee">
                         {task.assignee && (
                           <>
-                            <img className="task-table__assignee-avatar" src={task.assignee.avatar} alt={task.assignee.fullName} />
+                            <img className="task-table__assignee-avatar" src={getAvatarUrl(task.assignee.avatar, task.assignee.fullName)} alt={task.assignee.fullName} />
                             <span className="task-table__assignee-name">{task.assignee.fullName}</span>
                           </>
                         )}

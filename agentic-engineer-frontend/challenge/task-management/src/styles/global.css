@@ -237,7 +237,7 @@ ul, ol { list-style: none; }
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md);
   background-color: var(--color-primary);
   color: white;
   box-shadow: 0 2px 8px rgba(218, 88, 75, 0.35);
@@ -251,6 +251,7 @@ ul, ol { list-style: none; }
 }
 
 /* ===== SEARCH & FILTER ===== */
+/* ===== SEARCH FILTER ===== */
 .search-filter {
   display: flex;
   flex-direction: column;
@@ -263,30 +264,33 @@ ul, ol { list-style: none; }
   gap: var(--spacing-sm);
 }
 
+/* Toggle button styled like the toolbar view-toggle buttons */
 .search-filter__toggle {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
+  gap: 6px;
+  padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   background-color: var(--color-bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: none;
   color: var(--color-text-secondary);
+  font-size: 13px;
+  font-family: var(--font-family);
+  cursor: pointer;
   transition: all var(--duration-fast) var(--ease-out);
 }
 
 .search-filter__toggle:hover {
   color: var(--color-text-primary);
-  border-color: rgba(255, 255, 255, 0.12);
+  background-color: var(--color-bg-hover);
 }
 
 .search-filter__toggle--active {
   background-color: var(--color-primary);
   color: white;
-  border-color: var(--color-primary);
 }
 
+/* Clear filters button */
 .search-filter__clear {
   display: flex;
   align-items: center;
@@ -294,55 +298,73 @@ ul, ol { list-style: none; }
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   background: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: none;
   color: var(--color-text-secondary);
   font-size: 13px;
   font-family: var(--font-family);
+  cursor: pointer;
   white-space: nowrap;
   transition: all var(--duration-fast) var(--ease-out);
 }
 
 .search-filter__clear:hover {
   color: var(--color-error);
-  border-color: var(--color-error);
 }
 
+/* Filter panel: matches the card style used throughout the app */
 .search-filter__panel {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
   background-color: var(--color-bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-card);
+  animation: slideDown var(--duration-normal) var(--ease-out);
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reset fieldset defaults (used for the tags filter group) */
+fieldset.search-filter__group {
+  border: none;
+  padding: 0;
+  margin: 0;
 }
 
 .search-filter__group {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 150px;
+  min-width: 140px;
+  flex: 1;
 }
 
 .search-filter__label {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--color-text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
 }
 
+/* Selects and date inputs styled to match the dark theme */
 .search-filter__select,
 .search-filter__date {
   background-color: var(--color-bg-page);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
   color: var(--color-text-primary);
   font-size: 13px;
   font-family: var(--font-family);
   outline: none;
+  cursor: pointer;
   transition: border-color var(--duration-fast) var(--ease-out);
+  color-scheme: dark;
 }
 
 .search-filter__select:focus,
@@ -354,6 +376,7 @@ ul, ol { list-style: none; }
   background-color: var(--color-bg-card);
 }
 
+/* Tag filter buttons */
 .search-filter__tags {
   display: flex;
   flex-wrap: wrap;
@@ -361,25 +384,39 @@ ul, ol { list-style: none; }
 }
 
 .search-filter__tag-btn {
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: var(--radius-full);
   font-size: 12px;
+  font-weight: 500;
   font-family: var(--font-family);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
   color: var(--color-text-secondary);
+  cursor: pointer;
   transition: all var(--duration-fast) var(--ease-out);
 }
 
 .search-filter__tag-btn:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--color-text-primary);
 }
 
 .search-filter__tag-btn--active {
   background-color: var(--color-primary-subtle);
-  border-color: var(--color-primary);
   color: var(--color-primary);
+}
+
+/* Responsive: stack filters vertically on small screens */
+@media (max-width: 768px) {
+  .search-filter__panel {
+    flex-direction: column;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+  }
+
+  .search-filter__group {
+    min-width: unset;
+  }
 }
 
 /* ===== EMPTY RESULTS ===== */
@@ -848,6 +885,7 @@ ul, ol { list-style: none; }
   object-fit: cover;
 }
 
+/* Desktop: show standard date input, hide mobile picker */
 .task-form__date-input {
   background-color: var(--color-bg-page);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -858,6 +896,68 @@ ul, ol { list-style: none; }
   outline: none;
   width: 100%;
   color-scheme: dark;
+}
+
+.task-form__date-picker-mobile {
+  display: none;
+}
+
+/* Mobile: show scroll-wheel picker, hide standard input */
+@media (max-width: 768px) {
+  .task-form__date-picker-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .task-form__dropdown--date .task-form__date-input {
+    display: none;
+  }
+
+  .task-form__date-done-btn {
+    background-color: var(--color-primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: 14px;
+    cursor: pointer;
+    align-self: flex-end;
+  }
+}
+
+/* iOS-style 3D wheel date picker (@ncdai/react-wheel-picker) */
+.date-picker {
+  display: flex;
+  background-color: #000;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Dark theme overrides */
+.date-picker [data-rwp-option] {
+  color: #555;
+  font-size: 14px;
+  font-family: var(--font-family);
+}
+
+.date-picker [data-rwp-highlight-item] {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-family);
+}
+
+.date-picker [data-rwp-highlight-wrapper] {
+  background: rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Month column: left-aligned */
+.date-picker__option-month {
+  justify-content: flex-start !important;
+  padding-left: 12px !important;
 }
 
 .task-form__actions {
@@ -1209,6 +1309,34 @@ ul, ol { list-style: none; }
   border-radius: var(--radius-sm);
   background-color: var(--color-bg-hover);
   color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.task-table__tag-more:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: var(--color-text-secondary);
+}
+
+.task-table__tag-more-wrapper {
+  position: relative;
+}
+
+.task-table__tag-popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--spacing-sm);
+  background-color: var(--color-bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-dropdown);
+  z-index: 50;
+  white-space: nowrap;
+  animation: dropdown-enter var(--duration-fast) var(--ease-out);
 }
 
 .task-table__col-estimate {
@@ -1601,18 +1729,18 @@ ul, ol { list-style: none; }
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
 
-  /* Dropdowns: centered overlay on mobile */
+  /* Dropdowns: positioned below the chip on mobile */
   .task-form__chip-wrapper {
-    position: static;
+    position: relative;
   }
 
   .task-form__dropdown {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    min-width: 280px;
-    max-height: 60vh;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    min-width: unset;
+    max-height: 50vh;
     overflow-y: auto;
     z-index: 200;
   }

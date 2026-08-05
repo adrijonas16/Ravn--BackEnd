@@ -3,6 +3,7 @@ import { MoreHorizontal, Clock, Paperclip, GitBranch, MessageCircle, Pencil, Tra
 import type { Task } from '../../types/task';
 import { formatDate, getDateColor, getPointLabel } from '../../utils/date';
 import { getTagLabel, getTagClassName } from '../../utils/tags';
+import { getAvatarUrl } from '../../utils/avatar';
 
 interface TaskCardProps {
   task: Task;
@@ -103,15 +104,16 @@ export const TaskCard = memo(function TaskCard({ task, index, onEdit, onDelete }
         {task.assignee && (
           <img
             className="task-card__avatar"
-            src={task.assignee.avatar}
+            src={getAvatarUrl(task.assignee.avatar, task.assignee.fullName)}
             alt={task.assignee.fullName}
             title={task.assignee.fullName}
           />
         )}
+        {/* Decorative stat icons matching the Figma design (API doesn't provide these values) */}
         <div className="task-card__stats">
           <span className="task-card__stat"><Paperclip size={14} /></span>
-          <span className="task-card__stat">5 <GitBranch size={14} /></span>
-          <span className="task-card__stat">3 <MessageCircle size={14} /></span>
+          <span className="task-card__stat"><GitBranch size={14} /></span>
+          <span className="task-card__stat"><MessageCircle size={14} /></span>
         </div>
       </div>
     </article>

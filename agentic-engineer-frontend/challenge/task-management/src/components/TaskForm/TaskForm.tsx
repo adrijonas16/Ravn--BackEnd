@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
+import { useQuery } from '@apollo/client/react';
 import { LayoutGrid, User, Tag, Calendar } from 'lucide-react';
 import type { Task, CreateTaskInput } from '../../types/task';
+import type { User as UserType } from '../../types/task';
+import { DatePicker } from '../DatePicker';
 import { TaskStatus, TaskTag } from '../../types/task';
-import { mockUsers } from '../../mocks/data';
+import { GET_USERS } from '../../graphql/queries';
+import { getAvatarUrl } from '../../utils/avatar';
 
 // Props for the task form
 // If initialData is provided, the form works in "edit" mode; otherwise it's "create" mode
@@ -42,6 +46,10 @@ function formatDisplayDate(dateStr: string): string {
 // Form used for both creating and editing tasks
 // Uses chip-style dropdowns for estimate, assignee, tags, and due date
 export function TaskForm({ initialData, onSubmit, onCancel }: TaskFormProps) {
+  // Fetch real users from the API for the assignee dropdown
+  const { data: usersData } = useQuery<{ users: UserType[] }>(GET_USERS);
+  const users = usersData?.users ?? [];
+
   const [name, setName] = useState(initialData?.name ?? '');
   const [pointEstimate, setPointEstimate] = useState(initialData?.pointEstimate ?? '');
   const [assigneeId, setAssigneeId] = useState(initialData?.assignee?.id ?? '');
@@ -57,7 +65,7 @@ export function TaskForm({ initialData, onSubmit, onCancel }: TaskFormProps) {
   const [openDropdown, setOpenDropdown] = useState<DropdownType>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const selectedAssignee = mockUsers.find((u) => u.id === assigneeId);
+  const selectedAssignee = users.find((u) => u.id === assigneeId);
   const selectedPointLabel = POINT_OPTIONS.find((p) => p.value === pointEstimate)?.label;
 
   useEffect(() => {
@@ -139,7 +147,7 @@ export function TaskForm({ initialData, onSubmit, onCancel }: TaskFormProps) {
           >
             {selectedAssignee ? (
               <>
-                <img className="task-form__chip-avatar" src={selectedAssignee.avatar} alt={selectedAssignee.fullName} />
+                <img className="task-form__chip-avatar" src={getAvatarUrl(selectedAssignee.avatar, selectedAssignee.fullName)} alt={selectedAssignee.fullName} />
                 {selectedAssignee.fullName}
               </>
             ) : (
@@ -149,14 +157,14 @@ export function TaskForm({ initialData, onSubmit, onCancel }: TaskFormProps) {
           {openDropdown === 'assignee' && (
             <div className="task-form__dropdown">
               <div className="task-form__dropdown-header">Assign to...</div>
-              {mockUsers.map((user) => (
+              {users.map((user) => (
                 <button
                   key={user.id}
                   type="button"
                   className={`task-form__dropdown-item${assigneeId === user.id ? ' task-form__dropdown-item--active' : ''}`}
                   onClick={() => { setAssigneeId(user.id); setOpenDropdown(null); }}
                 >
-                  <img className="task-form__dropdown-avatar" src={user.avatar} alt={user.fullName} />
+                  <img className="task-form__dropdown-avatar" src={getAvatarUrl(user.avatar, user.fullName)} alt={user.fullName} />
                   {user.fullName}
                 </button>
               ))}
@@ -204,7 +212,18 @@ export function TaskForm({ initialData, onSubmit, onCancel }: TaskFormProps) {
             {dueDate ? formatDisplayDate(dueDate) : 'Due date'}
           </button>
           {openDropdown === 'dueDate' && (
-            <div className="task-form__dropdown">
+            <div className="task-form__dropdown task-form__dropdown--date">
+              {/* Scroll-wheel picker for mobile, standard input for desktop */}
+              <div className="task-form__date-picker-mobile">
+                <DatePicker value={dueDate} onChange={(v) => setDueDate(v)} />
+                <button
+                  type="button"
+                  className="task-form__date-done-btn"
+                  onClick={() => setOpenDropdown(null)}
+                >
+                  Done
+                </button>
+              </div>
               <input
                 type="date"
                 className="task-form__date-input"

@@ -26,7 +26,7 @@ const COLUMNS = [
 // Main dashboard page: displays tasks in a Kanban board layout
 // Handles creating, editing, deleting tasks, and drag-and-drop between columns
 export function Dashboard() {
-  const { tasks, createTask, updateTask, deleteTask } = useTasks();
+  const { tasks, loading, error, createTask, updateTask, deleteTask } = useTasks();
   const { filters, clearFilters } = useFilters();
   const { toasts, showToast, removeToast } = useToast();
 
@@ -38,42 +38,42 @@ export function Dashboard() {
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
   // CRUD handlers — each shows a toast notification on success or failure
-  const handleCreate = (input: CreateTaskInput) => {
-    const result = createTask(input);
+  const handleCreate = async (input: CreateTaskInput) => {
+    const result = await createTask(input);
     if (result.success) {
       showToast('Task created successfully', 'success');
       setShowCreateForm(false);
     } else {
-      showToast('Failed to create task', 'error');
+      showToast(result.error ?? 'Failed to create task', 'error');
     }
   };
 
-  const handleUpdate = (input: CreateTaskInput) => {
+  const handleUpdate = async (input: CreateTaskInput) => {
     if (!editingTask) return;
-    const result = updateTask({ id: editingTask.id, ...input });
+    const result = await updateTask({ id: editingTask.id, ...input });
     if (result.success) {
       showToast('Task updated successfully', 'success');
       setEditingTask(null);
     } else {
-      showToast('Failed to update task', 'error');
+      showToast(result.error ?? 'Failed to update task', 'error');
     }
   };
 
-  const handleMoveTask = (taskId: string, newStatus: TaskStatus) => {
-    const result = updateTask({ id: taskId, status: newStatus });
+  const handleMoveTask = async (taskId: string, newStatus: TaskStatus) => {
+    const result = await updateTask({ id: taskId, status: newStatus });
     if (result.success) {
       showToast('Task moved successfully', 'success');
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deletingTaskId) return;
-    const result = deleteTask(deletingTaskId);
+    const result = await deleteTask(deletingTaskId);
     if (result.success) {
       showToast('Task deleted successfully', 'success');
       setDeletingTaskId(null);
     } else {
-      showToast('Failed to delete task', 'error');
+      showToast(result.error ?? 'Failed to delete task', 'error');
     }
   };
 
@@ -88,7 +88,19 @@ export function Dashboard() {
 
       <SearchFilter />
 
-      {tasks.length === 0 && Object.values(filters).some((v) => Array.isArray(v) ? v.length > 0 : v !== undefined) ? (
+      {/* Show loading spinner while fetching tasks */}
+      {loading && tasks.length === 0 && (
+        <div className="loading-spinner"><div className="loading-spinner__circle" /></div>
+      )}
+
+      {/* Show error message if the query failed */}
+      {error && (
+        <div className="empty-results">
+          <p className="empty-results__text">Failed to load tasks: {error}</p>
+        </div>
+      )}
+
+      {!loading && tasks.length === 0 && Object.values(filters).some((v) => Array.isArray(v) ? v.length > 0 : v !== undefined) ? (
         <div className="empty-results">
           <p className="empty-results__text">No tasks match the current filters</p>
           <button type="button" className="empty-results__btn" onClick={clearFilters}>Clear filters</button>

@@ -1,5 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { ApolloProvider } from '@apollo/client/react';
+import { client } from './graphql/client';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
@@ -68,19 +70,22 @@ function AppShell() {
 
 // Root component: wraps the app with global providers
 // - ErrorBoundary: catches runtime errors and shows a fallback UI
+// - ApolloProvider: makes the GraphQL client available to all components
 // - BrowserRouter: enables client-side routing
 // - FilterProvider: shares filter state across all pages
 // - CreateTaskProvider: lets any component trigger the "create task" modal
 export default function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <FilterProvider>
-          <CreateTaskProvider>
-            <AppShell />
-          </CreateTaskProvider>
-        </FilterProvider>
-      </BrowserRouter>
+      <ApolloProvider client={client}>
+        <BrowserRouter>
+          <FilterProvider>
+            <CreateTaskProvider>
+              <AppShell />
+            </CreateTaskProvider>
+          </FilterProvider>
+        </BrowserRouter>
+      </ApolloProvider>
     </ErrorBoundary>
   );
 }

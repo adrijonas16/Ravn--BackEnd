@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useQuery } from '@apollo/client/react';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { TaskStatus, TaskTag } from '../../types/task';
-import { mockUsers } from '../../mocks/data';
+import type { User } from '../../types/task';
 import { useFilters } from '../../context/FilterContext';
+import { GET_USERS } from '../../graphql/queries';
 
 // Dropdown options for each filter type
 const STATUS_OPTIONS = [
@@ -34,6 +36,8 @@ const POINT_OPTIONS = [
 export function SearchFilter() {
   const { filters, setFilters, clearFilters } = useFilters();
   const [showFilters, setShowFilters] = useState(false);
+  const { data: usersData } = useQuery<{ users: User[] }>(GET_USERS);
+  const users = usersData?.users ?? [];
 
   // Check if any advanced filter is active (used to show/hide the "Clear" button)
   const hasAdvancedFilters = filters.status !== undefined
@@ -115,7 +119,7 @@ export function SearchFilter() {
               onChange={(e) => handleOwnerChange(e.target.value)}
             >
               <option value="">All assignees</option>
-              {mockUsers.map((user) => (
+              {users.map((user) => (
                 <option key={user.id} value={user.id}>{user.fullName}</option>
               ))}
             </select>
