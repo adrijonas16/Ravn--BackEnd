@@ -1,0 +1,55 @@
+import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { AuthService } from './auth.service';
+import { SignUpDto } from './dto/signup.dto';
+import { SignInDto } from './dto/signin.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+
+// @ApiTags agrupa estos endpoints bajo "Auth" en la documentación Swagger
+@ApiTags('Auth')
+// @Controller('auth') define el prefijo de ruta: todas las rutas aquí empiezan con /auth
+@Controller('auth')
+export class AuthController {
+  // NestJS inyecta AuthService automáticamente (Dependency Injection)
+  constructor(private authService: AuthService) {}
+
+  // @Post('signup') → POST /auth/signup (por defecto devuelve 201 Created)
+  @Post('signup')
+  @ApiOperation({ summary: 'Register a new client account' })
+  // @Body() extrae el cuerpo del request y lo valida contra SignUpDto
+  signUp(@Body() dto: SignUpDto) {
+    return this.authService.signUp(dto);
+  }
+
+  // @HttpCode(200) cambia el código de respuesta (POST normalmente devuelve 201, pero login devuelve 200)
+  @Post('signin')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Sign in with email and password' })
+  signIn(@Body() dto: SignInDto) {
+    return this.authService.signIn(dto);
+  }
+
+  @Post('signout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Sign out' })
+  signOut() {
+    // Con JWT stateless, el logout se maneja en el cliente borrando el token.
+    // Para invalidar tokens en el server, se necesitaría una blacklist.
+    return { message: 'Signed out' };
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Request a password reset email' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset password using token' })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
+  }
+}

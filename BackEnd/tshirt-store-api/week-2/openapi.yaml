@@ -1,0 +1,1872 @@
+openapi: 3.0.3
+info:
+  title: T-Shirt Store API
+  description: |
+    REST API for the T-Shirt Store capstone project.
+    Supports three roles: Manager, Client, and Delivery Person.
+  version: 1.0.0
+  contact:
+    name: Adrian
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Authentication and password management
+  - name: Products
+    description: Product catalog (public + manager CRUD)
+  - name: SKUs
+    description: Product variants (size + color + price + stock)
+  - name: Categories
+    description: Product categories
+  - name: Cart
+    description: Shopping cart (client only)
+  - name: Orders
+    description: Order management
+  - name: Payments
+    description: Stripe payment processing
+  - name: Webhooks
+    description: Stripe webhook handlers
+  - name: Likes
+    description: Product likes (client only)
+  - name: Promo Codes
+    description: Discount promo codes (optional feature)
+  - name: Delivery
+    description: Delivery person operations (optional feature)
+
+# ─── Security schemes ───────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ─── Reusable parameters ────────────────────────────────────────
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    ProductIdParam:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    SkuIdParam:
+      name: skuId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    OrderIdParam:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  # ─── Reusable schemas ───────────────────────────────────────────
+
+  schemas:
+    # ── Auth ──
+    SignUpRequest:
+      type: object
+      required: [email, password, firstName, lastName]
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: Secret123!
+        firstName:
+          type: string
+          example: John
+        lastName:
+          type: string
+          example: Doe
+        phone:
+          type: string
+          example: "+1234567890"
+
+    SignInRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIs...
+        user:
+          $ref: "#/components/schemas/UserSummary"
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        role:
+          type: string
+          enum: [manager, client, delivery_person]
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+
+    # ── Category ──
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: Graphic Tees
+        slug:
+          type: string
+          example: graphic-tees
+        description:
+          type: string
+
+    # ── Product ──
+    ProductSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: Mountain Sunset Tee
+        slug:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+        category:
+          $ref: "#/components/schemas/Category"
+        primaryImage:
+          type: string
+          format: uri
+          nullable: true
+        likesCount:
+          type: integer
+        isLiked:
+          type: boolean
+          description: Whether the current user has liked this product (false if not logged in)
+        minPrice:
+          type: number
+          format: float
+          description: Lowest SKU price for this product
+        createdAt:
+          type: string
+          format: date-time
+
+    ProductDetail:
+      allOf:
+        - $ref: "#/components/schemas/ProductSummary"
+        - type: object
+          properties:
+            images:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProductImage"
+            skus:
+              type: array
+              items:
+                $ref: "#/components/schemas/Sku"
+
+    CreateProductRequest:
+      type: object
+      required: [name, description, categoryId]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [active, disabled]
+
+    ProductImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publicUrl:
+          type: string
+          format: uri
+        altText:
+          type: string
+        sortOrder:
+          type: integer
+        isPrimary:
+          type: boolean
+
+    # ── SKU ──
+    Sku:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        sku:
+          type: string
+          example: MST-BLU-L
+        sizeName:
+          type: string
+          example: L
+        colorName:
+          type: string
+          example: Blue
+        colorHex:
+          type: string
+          example: "#0000FF"
+        price:
+          type: number
+          format: float
+          example: 29.99
+        stock:
+          type: integer
+          example: 50
+        isActive:
+          type: boolean
+
+    CreateSkuRequest:
+      type: object
+      required: [sizeId, colorId, sku, price, stock]
+      properties:
+        sizeId:
+          type: integer
+          format: int64
+        colorId:
+          type: integer
+          format: int64
+        sku:
+          type: string
+        price:
+          type: number
+          format: float
+          minimum: 0
+        stock:
+          type: integer
+          minimum: 0
+
+    UpdateSkuRequest:
+      type: object
+      properties:
+        price:
+          type: number
+          format: float
+          minimum: 0
+        stock:
+          type: integer
+          minimum: 0
+        isActive:
+          type: boolean
+
+    # ── Cart ──
+    Cart:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItem"
+        totalAmount:
+          type: number
+          format: float
+
+    CartItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        productSkuId:
+          type: integer
+          format: int64
+        productName:
+          type: string
+        skuCode:
+          type: string
+        sizeName:
+          type: string
+        colorName:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        unitPrice:
+          type: number
+          format: float
+        quantity:
+          type: integer
+        lineTotal:
+          type: number
+          format: float
+
+    AddCartItemRequest:
+      type: object
+      required: [productSkuId, quantity]
+      properties:
+        productSkuId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          minimum: 1
+
+    UpdateCartItemRequest:
+      type: object
+      required: [quantity]
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+
+    # ── Order ──
+    OrderSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        orderNumber:
+          type: string
+        currentStatus:
+          type: string
+          enum: [pending, paid, processing, shipped, delivered, cancelled]
+        subtotal:
+          type: number
+          format: float
+        discountAmount:
+          type: number
+          format: float
+        totalAmount:
+          type: number
+          format: float
+        paymentMethod:
+          type: string
+          enum: [payment_link, payment_intent]
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    OrderDetail:
+      allOf:
+        - $ref: "#/components/schemas/OrderSummary"
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrderItem"
+            promoCode:
+              type: string
+              nullable: true
+            promoDiscount:
+              type: number
+              format: float
+              nullable: true
+            shippingAddress:
+              type: object
+              properties:
+                recipientName:
+                  type: string
+                recipientPhone:
+                  type: string
+                line1:
+                  type: string
+                line2:
+                  type: string
+                  nullable: true
+                city:
+                  type: string
+                stateRegion:
+                  type: string
+                  nullable: true
+                postalCode:
+                  type: string
+                countryCode:
+                  type: string
+            statusHistory:
+              type: array
+              items:
+                $ref: "#/components/schemas/StatusHistoryEntry"
+
+    OrderItem:
+      type: object
+      properties:
+        productName:
+          type: string
+        skuCode:
+          type: string
+        sizeName:
+          type: string
+        colorName:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+          nullable: true
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+          format: float
+        lineTotal:
+          type: number
+          format: float
+
+    StatusHistoryEntry:
+      type: object
+      properties:
+        fromStatus:
+          type: string
+          nullable: true
+        toStatus:
+          type: string
+        changedBy:
+          type: string
+          nullable: true
+          description: User email or "system"
+        reason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateOrderRequest:
+      type: object
+      required: [addressId]
+      properties:
+        addressId:
+          type: integer
+          format: int64
+        promoCode:
+          type: string
+          description: Optional promo code to apply
+
+    UpdateOrderStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [processing, shipped, delivered, cancelled]
+        reason:
+          type: string
+
+    # ── Payment ──
+    CreatePaymentIntentResponse:
+      type: object
+      properties:
+        clientSecret:
+          type: string
+          description: Stripe client secret for frontend confirmation
+        paymentIntentId:
+          type: string
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+          example: usd
+
+    CreatePaymentLinkRequest:
+      type: object
+      required: [productSkuId, quantity, addressId]
+      properties:
+        productSkuId:
+          type: integer
+          format: int64
+        quantity:
+          type: integer
+          minimum: 1
+        addressId:
+          type: integer
+          format: int64
+
+    CreatePaymentLinkResponse:
+      type: object
+      properties:
+        paymentLinkUrl:
+          type: string
+          format: uri
+        orderId:
+          type: integer
+          format: int64
+
+    # ── Promo Code (optional) ──
+    PromoCode:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        code:
+          type: string
+        discountType:
+          type: string
+          enum: [percentage, fixed_amount]
+        discountValue:
+          type: number
+          format: float
+        expiresAt:
+          type: string
+          format: date-time
+        usageLimit:
+          type: integer
+        usageCount:
+          type: integer
+        minimumPurchaseAmount:
+          type: number
+          format: float
+          nullable: true
+        isActive:
+          type: boolean
+
+    CreatePromoCodeRequest:
+      type: object
+      required: [code, discountType, discountValue, expiresAt, usageLimit]
+      properties:
+        code:
+          type: string
+        discountType:
+          type: string
+          enum: [percentage, fixed_amount]
+        discountValue:
+          type: number
+          format: float
+          minimum: 0.01
+        expiresAt:
+          type: string
+          format: date-time
+        usageLimit:
+          type: integer
+          minimum: 1
+        minimumPurchaseAmount:
+          type: number
+          format: float
+          nullable: true
+
+    # ── Pagination wrapper ──
+    PaginatedResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: {}
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            limit:
+              type: integer
+            totalItems:
+              type: integer
+            totalPages:
+              type: integer
+
+    # ── Error ──
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        message:
+          type: string
+        error:
+          type: string
+      example:
+        statusCode: 400
+        message: Validation failed
+        error: Bad Request
+
+# ─── Paths ──────────────────────────────────────────────────────────
+
+paths:
+  # ── Auth ──────────────────────────────────────────────────────────
+
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Register a new client account
+      operationId: signUp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignUpRequest"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/signin:
+    post:
+      tags: [Auth]
+      summary: Sign in with email and password
+      operationId: signIn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInRequest"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/signout:
+    post:
+      tags: [Auth]
+      summary: Sign out (invalidate token)
+      operationId: signOut
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Signed out
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request a password reset email
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: If the email exists, a reset link was sent
+        "429":
+          description: Too many requests (rate limited)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password using token
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset successfully (email notification sent)
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests (rate limited)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Categories ────────────────────────────────────────────────────
+
+  /categories:
+    get:
+      tags: [Categories]
+      summary: List all categories
+      operationId: listCategories
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+  # ── Products ──────────────────────────────────────────────────────
+
+  /products:
+    get:
+      tags: [Products]
+      summary: List products with pagination (public)
+      operationId: listProducts
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: categoryId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Filter by category
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by product name
+      responses:
+        "200":
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ProductSummary"
+
+    post:
+      tags: [Products]
+      summary: Create a product (manager only)
+      operationId: createProduct
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductDetail"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized (not a manager)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /products/{productId}:
+    get:
+      tags: [Products]
+      summary: Get product details (public)
+      operationId: getProduct
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "200":
+          description: Product detail with SKUs and images
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductDetail"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      tags: [Products]
+      summary: Update a product (manager only)
+      operationId: updateProduct
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProductRequest"
+      responses:
+        "200":
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductDetail"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags: [Products]
+      summary: Soft-delete a product (manager only)
+      operationId: deleteProduct
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "204":
+          description: Product deleted
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /products/{productId}/images:
+    post:
+      tags: [Products]
+      summary: Upload an image for a product (manager only)
+      operationId: uploadProductImage
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                altText:
+                  type: string
+                isPrimary:
+                  type: boolean
+                  default: false
+      responses:
+        "201":
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductImage"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /products/{productId}/images/{imageId}:
+    delete:
+      tags: [Products]
+      summary: Delete a product image (manager only)
+      operationId: deleteProductImage
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+        - name: imageId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Image deleted
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Image not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── SKUs ──────────────────────────────────────────────────────────
+
+  /products/{productId}/skus:
+    get:
+      tags: [SKUs]
+      summary: List SKUs for a product (public)
+      operationId: listSkus
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "200":
+          description: List of SKUs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sku"
+        "404":
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags: [SKUs]
+      summary: Create a SKU for a product (manager only)
+      operationId: createSku
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSkuRequest"
+      responses:
+        "201":
+          description: SKU created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sku"
+        "400":
+          description: Validation error or duplicate size+color combination
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /products/{productId}/skus/{skuId}:
+    patch:
+      tags: [SKUs]
+      summary: Update a SKU (manager only)
+      operationId: updateSku
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+        - $ref: "#/components/parameters/SkuIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSkuRequest"
+      responses:
+        "200":
+          description: SKU updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sku"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: SKU not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Likes ─────────────────────────────────────────────────────────
+
+  /products/{productId}/like:
+    post:
+      tags: [Likes]
+      summary: Like a product (client only)
+      operationId: likeProduct
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "201":
+          description: Product liked
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already liked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags: [Likes]
+      summary: Unlike a product (client only)
+      operationId: unlikeProduct
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "204":
+          description: Like removed
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Like not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Cart ──────────────────────────────────────────────────────────
+
+  /cart:
+    get:
+      tags: [Cart]
+      summary: Get current cart (client only)
+      operationId: getCart
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current active cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cart/items:
+    post:
+      tags: [Cart]
+      summary: Add item to cart (client only)
+      operationId: addCartItem
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddCartItemRequest"
+      responses:
+        "201":
+          description: Item added to cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          description: Validation error or insufficient stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cart/items/{itemId}:
+    patch:
+      tags: [Cart]
+      summary: Update cart item quantity (client only)
+      operationId: updateCartItem
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCartItemRequest"
+      responses:
+        "200":
+          description: Cart item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+        "400":
+          description: Insufficient stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cart item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags: [Cart]
+      summary: Remove item from cart (client only)
+      operationId: removeCartItem
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: Item removed
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Cart item not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Orders ────────────────────────────────────────────────────────
+
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Create an order from cart (client only)
+      operationId: createOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: Order created (status pending)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetail"
+        "400":
+          description: Cart is empty or stock unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags: [Orders]
+      summary: List orders (client sees own, manager sees all)
+      operationId: listOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, paid, processing, shipped, delivered, cancelled]
+        - name: fromDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter orders from this date
+        - name: toDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter orders up to this date
+        - name: minAmount
+          in: query
+          schema:
+            type: number
+            format: float
+          description: Minimum total amount
+        - name: maxAmount
+          in: query
+          schema:
+            type: number
+            format: float
+          description: Maximum total amount
+      responses:
+        "200":
+          description: Paginated order list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/OrderSummary"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: Get order details (client own order, manager any order)
+      operationId: getOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIdParam"
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetail"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized to view this order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/{orderId}/status:
+    patch:
+      tags: [Orders]
+      summary: Update order status (manager or delivery person)
+      operationId: updateOrderStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrderStatusRequest"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetail"
+        "400":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized for this transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/{orderId}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancel an order (client, only before shipped)
+      operationId: cancelOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetail"
+        "400":
+          description: Order cannot be cancelled (already shipped or delivered)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized (not the order owner)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Payments ──────────────────────────────────────────────────────
+
+  /orders/{orderId}/payment-intent:
+    post:
+      tags: [Payments]
+      summary: Create a Stripe Payment Intent for cart checkout (client only)
+      operationId: createPaymentIntent
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIdParam"
+      responses:
+        "201":
+          description: Payment Intent created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatePaymentIntentResponse"
+        "400":
+          description: Order not in pending status or stock unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not the order owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments/payment-link:
+    post:
+      tags: [Payments]
+      summary: Create a Stripe Payment Link for single product purchase (client only)
+      operationId: createPaymentLink
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentLinkRequest"
+      responses:
+        "201":
+          description: Payment Link created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatePaymentLinkResponse"
+        "400":
+          description: Insufficient stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Webhooks ──────────────────────────────────────────────────────
+
+  /webhooks/stripe:
+    post:
+      tags: [Webhooks]
+      summary: Handle Stripe webhook events
+      description: |
+        Handles `payment_intent.succeeded` and `checkout.session.completed` events.
+        Verifies the webhook signature. Updates order status and decrements stock.
+      operationId: handleStripeWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Webhook processed
+        "400":
+          description: Invalid signature
+
+  # ── Promo Codes (optional) ────────────────────────────────────────
+
+  /promo-codes:
+    get:
+      tags: [Promo Codes]
+      summary: List promo codes (manager only)
+      operationId: listPromoCodes
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Paginated promo code list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/PromoCode"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      tags: [Promo Codes]
+      summary: Create a promo code (manager only)
+      operationId: createPromoCode
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePromoCodeRequest"
+      responses:
+        "201":
+          description: Promo code created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromoCode"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Code already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /promo-codes/{promoCodeId}:
+    patch:
+      tags: [Promo Codes]
+      summary: Update or disable a promo code (manager only)
+      operationId: updatePromoCode
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: promoCodeId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isActive:
+                  type: boolean
+                usageLimit:
+                  type: integer
+                  minimum: 1
+                expiresAt:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Promo code updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromoCode"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not authorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Promo code not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Delivery (optional) ──────────────────────────────────────────
+
+  /delivery/orders:
+    get:
+      tags: [Delivery]
+      summary: List assigned orders (delivery person only)
+      operationId: listDeliveryOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [shipped, delivered]
+      responses:
+        "200":
+          description: Paginated list of assigned orders
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/PaginatedResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/OrderSummary"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a delivery person
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /delivery/orders/{orderId}/deliver:
+    post:
+      tags: [Delivery]
+      summary: Mark order as delivered (delivery person only)
+      operationId: markOrderDelivered
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderIdParam"
+      responses:
+        "200":
+          description: Order marked as delivered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetail"
+        "400":
+          description: Order not in shipped status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not assigned to this order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

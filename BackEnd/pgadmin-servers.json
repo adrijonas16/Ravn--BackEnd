@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Nerdery Docker (Pagila + Banking + T-Shirt Store)",
+      "Group": "RAVN",
+      "Host": "127.0.0.1",
+      "Port": 5434,
+      "MaintenanceDB": "nerdery_db",
+      "Username": "postgres",
+      "SSLMode": "prefer",
+      "PassFile": ""
+    }
+  }
+}

@@ -1,0 +1,209 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
+import { OrdersService } from './orders.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+describe('OrdersService', () => {
+  let service: OrdersService;
+  let prisma: Record<string, any>;
+
+  const clientUser = { id: 1, email: 'client@test.com', role: 'client' };
+  const managerUser = { id: 2, email: 'manager@test.com', role: 'manager' };
+
+  beforeEach(async () => {
+    prisma = {
+      cart: { findFirst: jest.fn() },
+      address: { findFirst: jest.fn() },
+      order: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), count: jest.fn() },
+      promoCode: { findUnique: jest.fn() },
+      promoCodeRedemption: { count: jest.fn(), create: jest.fn() },
+      orderStatusHistory: { create: jest.fn() },
+      productSku: { update: jest.fn(), findUnique: jest.fn() },
+      inventoryMovement: { create: jest.fn() },
+      $transaction: jest.fn((fn) => fn(prisma)),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        OrdersService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+
+    service = module.get(OrdersService);
+  });
+
+  describe('create', () => {
+    it('should throw BadRequestException if cart is empty', async () => {
+      prisma.cart.findFirst.mockResolvedValue(null);
+      await expect(
+        service.create(1, { addressId: 1 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if cart has no items', async () => {
+      prisma.cart.findFirst.mockResolvedValue({ id: 1, items: [] });
+      await expect(
+        service.create(1, { addressId: 1 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException if address not found', async () => {
+      prisma.cart.findFirst.mockResolvedValue({
+        id: 1,
+        items: [{ productSku: { stock: 10, price: 20, sku: 'A', product: { name: 'T', images: [] }, size: { name: 'M' }, color: { name: 'Red' } }, productSkuId: 1, quantity: 1 }],
+      });
+      prisma.address.findFirst.mockResolvedValue(null);
+      await expect(
+        service.create(1, { addressId: 999 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException if stock insufficient', async () => {
+      prisma.cart.findFirst.mockResolvedValue({
+        id: 1,
+        items: [{
+          productSku: { stock: 0, price: 20, sku: 'A', product: { name: 'T', images: [] }, size: { name: 'M' }, color: { name: 'Red' } },
+          productSkuId: 1,
+          quantity: 5,
+        }],
+      });
+      prisma.address.findFirst.mockResolvedValue({ id: 1, recipientName: 'J', recipientPhone: '1', line1: 'st', city: 'c', countryCode: 'US' });
+      await expect(
+        service.create(1, { addressId: 1 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('findAll', () => {
+    it('should filter by userId for client role', async () => {
+      prisma.order.findMany.mockResolvedValue([]);
+      prisma.order.count.mockResolvedValue(0);
+
+      await service.findAll(clientUser, { page: 1, limit: 20 });
+
+      expect(prisma.order.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ userId: 1 }),
+        }),
+      );
+    });
+
+    it('should not filter by userId for manager role', async () => {
+      prisma.order.findMany.mockResolvedValue([]);
+      prisma.order.count.mockResolvedValue(0);
+
+      await service.findAll(managerUser, { page: 1, limit: 20 });
+
+      const call = prisma.order.findMany.mock.calls[0][0];
+      expect(call.where.userId).toBeUndefined();
+    });
+
+    it('should apply status filter', async () => {
+      prisma.order.findMany.mockResolvedValue([]);
+      prisma.order.count.mockResolvedValue(0);
+
+      await service.findAll(clientUser, { page: 1, limit: 20, status: 'paid' as any });
+
+      expect(prisma.order.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ currentStatus: 'paid' }),
+        }),
+      );
+    });
+  });
+
+  describe('findOne', () => {
+    it('should throw NotFoundException for non-existent order', async () => {
+      prisma.order.findUnique.mockResolvedValue(null);
+      await expect(service.findOne(999, clientUser)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw ForbiddenException if client views another users order', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 1,
+        userId: 999,
+        items: [],
+        statusHistory: [],
+        payments: [],
+      });
+      await expect(service.findOne(1, clientUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should allow manager to view any order', async () => {
+      const order = {
+        id: 1,
+        userId: 999,
+        items: [],
+        statusHistory: [],
+        payments: [],
+      };
+      prisma.order.findUnique.mockResolvedValue(order);
+      const result = await service.findOne(1, managerUser);
+      expect(result.id).toBe(1);
+    });
+  });
+
+  describe('updateStatus', () => {
+    it('should throw NotFoundException for non-existent order', async () => {
+      prisma.order.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateStatus(999, 'processing' as any, managerUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException for invalid transition', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 1,
+        currentStatus: 'pending',
+      });
+      await expect(
+        service.updateStatus(1, 'shipped' as any, managerUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw ForbiddenException if delivery person tries non-delivered status', async () => {
+      const deliveryUser = { id: 3, email: 'd@t.com', role: 'delivery_person' };
+      prisma.order.findUnique.mockResolvedValue({
+        id: 1,
+        currentStatus: 'shipped',
+        assignedDeliveryUserId: 3,
+      });
+      await expect(
+        service.updateStatus(1, 'processing' as any, deliveryUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('cancelOrder', () => {
+    it('should throw BadRequestException if order already shipped', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 1,
+        userId: 1,
+        currentStatus: 'shipped',
+      });
+      await expect(
+        service.cancelOrder(1, clientUser, 'changed mind'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw ForbiddenException if client cancels another users order', async () => {
+      prisma.order.findUnique.mockResolvedValue({
+        id: 1,
+        userId: 999,
+        currentStatus: 'pending',
+      });
+      await expect(
+        service.cancelOrder(1, clientUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+});
