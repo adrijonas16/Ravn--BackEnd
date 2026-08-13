@@ -25,13 +25,25 @@ import { readJsonFile } from "./utils/read-json.util";
 interface PriceAnalysis {
   totalPrice: number;
   averagePrice: number;
-  mostExpensiveProduct: Product;
-  cheapestProduct: Product;
+  mostExpensiveProduct: Product | null;
+  cheapestProduct: Product | null;
   onSaleCount: number;
   averageDiscount: number;
 }
 
 async function analyzeProductPrices(products: Product[]): Promise<PriceAnalysis> {
+  // Guard: return sensible defaults for an empty array
+  if (products.length === 0) {
+    return {
+      totalPrice: 0,
+      averagePrice: 0,
+      mostExpensiveProduct: null,
+      cheapestProduct: null,
+      onSaleCount: 0,
+      averageDiscount: 0,
+    };
+  }
+
   const totalPrice = products.reduce((sum, p) => sum + p.price, 0);
   const averagePrice = Math.round((totalPrice / products.length) * 100) / 100;
 

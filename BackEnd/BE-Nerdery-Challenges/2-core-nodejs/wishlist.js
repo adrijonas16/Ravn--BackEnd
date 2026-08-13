@@ -48,13 +48,21 @@ function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
     if (argv[i].startsWith("--")) {
-      const key = argv[i].slice(2);
-      const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith("--")) {
-        args[key] = next;
-        i++;
+      const raw = argv[i].slice(2);
+      const eqIndex = raw.indexOf("=");
+      if (eqIndex !== -1) {
+        // Handle --name=value syntax
+        const key = raw.slice(0, eqIndex);
+        args[key] = raw.slice(eqIndex + 1);
       } else {
-        args[key] = true;
+        const key = raw;
+        const next = argv[i + 1];
+        if (next !== undefined && !next.startsWith("--")) {
+          args[key] = next;
+          i++;
+        } else {
+          args[key] = true;
+        }
       }
     }
   }
@@ -136,7 +144,7 @@ function cmdList(data) {
 
   for (const item of data.items) {
     const id = String(item.id).padStart(3);
-    const name = item.name.padEnd(25);
+    const name = item.name.slice(0, 25).padEnd(25);
     const price = ("$" + item.price.toFixed(2)).padStart(10);
     const store = item.store;
     console.log(`  ${id}. ${name} ${price}   ${store}`);
@@ -208,6 +216,7 @@ function cmdSummary(data) {
   const total = data.items.reduce((sum, i) => sum + i.price, 0);
   const avg = total / data.items.length;
   const mostExpensive = data.items.reduce((max, i) => (i.price > max.price ? i : max), data.items[0]);
+  const cheapest = data.items.reduce((min, i) => (i.price < min.price ? i : min), data.items[0]);
 
   console.log("\n  Wishlist Summary");
   console.log("  " + "-".concat("".padEnd(40, "-")));
@@ -215,6 +224,7 @@ function cmdSummary(data) {
   console.log(`  Total cost:      $${total.toFixed(2)}`);
   console.log(`  Average price:   $${avg.toFixed(2)}`);
   console.log(`  Most expensive:  "${mostExpensive.name}" ($${mostExpensive.price.toFixed(2)})`);
+  console.log(`  Cheapest:        "${cheapest.name}" ($${cheapest.price.toFixed(2)})`);
   console.log();
 }
 

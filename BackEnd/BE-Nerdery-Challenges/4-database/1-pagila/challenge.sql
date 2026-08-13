@@ -101,7 +101,7 @@ SELECT
     c.last_name,
     MIN(r.rental_date) AS first_rental,
     MAX(r.rental_date) AS last_rental,
-    EXTRACT(DAY FROM MAX(r.rental_date) - MIN(r.rental_date)) AS rental_span_days
+    (MAX(r.rental_date)::date - MIN(r.rental_date)::date) AS rental_span_days
 FROM customer c
 JOIN rental r ON c.customer_id = r.customer_id
 GROUP BY c.customer_id, c.first_name, c.last_name
@@ -162,7 +162,7 @@ ORDER BY total_revenue DESC;
 SELECT * FROM revenue_by_category;
 
 -- Step 3: Top 3 categories by revenue
-SELECT * FROM revenue_by_category LIMIT 3;
+SELECT * FROM revenue_by_category ORDER BY total_revenue DESC LIMIT 3;
 
 -- Step 4: Refresh the materialized view
 REFRESH MATERIALIZED VIEW revenue_by_category;
@@ -182,7 +182,62 @@ REFRESH MATERIALIZED VIEW revenue_by_category;
     need near-real-time data, you could refresh every few minutes, but each
     refresh locks the view briefly. Using REFRESH MATERIALIZED VIEW CONCURRENTLY
     avoids blocking reads but requires a unique index on the view.
+
+    Production strategy chosen: DB-level scheduled refresh
+    See implementation below.
 */
+
+-- ─── BONUS: Automated refresh implementation ───────────────────────────
+
+-- Option A: Unique index required for CONCURRENTLY (non-blocking refresh)
+-- Without this, REFRESH CONCURRENTLY fails. With it, reads are not blocked
+-- during the refresh, so dashboards stay responsive.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_revenue_by_category_name
+ON revenue_by_category (category);
+
+-- Option B: DB-level function that refreshes the view.
+-- In production this would be called by pg_cron (e.g. every night at 2 AM):
+--   SELECT cron.schedule('refresh_revenue', '0 2 * * *', 'SELECT refresh_revenue_by_category()');
+-- Since pg_cron is not available in vanilla PostgreSQL Docker images,
+-- the same result can be achieved with an OS-level cron job:
+--   0 2 * * * psql -U postgres -d nerdery_db -c "SELECT refresh_revenue_by_category();"
+
+CREATE OR REPLACE FUNCTION refresh_revenue_by_category()
+RETURNS void AS $$
+BEGIN
+    -- CONCURRENTLY: does not lock the view during refresh, so reads keep working.
+    -- Requires the unique index created above.
+    REFRESH MATERIALIZED VIEW CONCURRENTLY revenue_by_category;
+    RAISE NOTICE 'revenue_by_category refreshed at %', now();
+END;
+$$ LANGUAGE plpgsql;
+
+-- Option C: Event-driven refresh — a trigger on the payment table that
+-- automatically refreshes the view whenever new payments are inserted.
+-- This is the "refresh when data actually changes" approach.
+-- Trade-off: adds latency to every INSERT on payment. Use only if payments
+-- are infrequent (e.g. batch close-of-day). For high-volume inserts,
+-- prefer the scheduled approach above.
+
+CREATE OR REPLACE FUNCTION refresh_revenue_on_payment()
+RETURNS trigger AS $$
+BEGIN
+    REFRESH MATERIALIZED VIEW CONCURRENTLY revenue_by_category;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Uncomment the trigger below to enable event-driven refresh:
+-- CREATE TRIGGER trg_refresh_revenue_after_payment
+--     AFTER INSERT ON payment
+--     FOR EACH STATEMENT
+--     EXECUTE FUNCTION refresh_revenue_on_payment();
+
+-- Test: call the refresh function manually
+SELECT refresh_revenue_by_category();
+
+-- Verify the view is up to date
+SELECT * FROM revenue_by_category;
 
 
 

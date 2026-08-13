@@ -50,6 +50,9 @@ DECLARE
     sender_status TEXT;
     recipient_status TEXT;
     tx_ref TEXT;
+    row RECORD;
+    found_sender BOOLEAN := FALSE;
+    found_recipient BOOLEAN := FALSE;
 BEGIN
     -- 1. Prevent transfer to the same account
     IF from_id = to_id THEN
@@ -61,23 +64,32 @@ BEGIN
         RAISE EXCEPTION 'Transfer amount must be greater than zero (got: %)', amount;
     END IF;
 
-    -- 3. Validate sender exists and lock the row
-    SELECT a.balance, a.status INTO sender_balance, sender_status
-    FROM banking.accounts a
-    WHERE a.account_id = from_id
-    FOR UPDATE;
+    -- 3-4. Lock both accounts in account_id order to prevent deadlocks.
+    --       Two concurrent transfers (A->B and B->A) will always lock the
+    --       lower account_id first, so they can never form a lock cycle.
+    FOR row IN
+        SELECT a.account_id, a.balance, a.status
+        FROM banking.accounts a
+        WHERE a.account_id IN (from_id, to_id)
+        ORDER BY a.account_id
+        FOR UPDATE
+    LOOP
+        IF row.account_id = from_id THEN
+            sender_balance := row.balance;
+            sender_status  := row.status;
+            found_sender   := TRUE;
+        END IF;
+        IF row.account_id = to_id THEN
+            recipient_status := row.status;
+            found_recipient  := TRUE;
+        END IF;
+    END LOOP;
 
-    IF NOT FOUND THEN
+    IF NOT found_sender THEN
         RAISE EXCEPTION 'Sender account % does not exist', from_id;
     END IF;
 
-    -- 4. Validate recipient exists and lock the row
-    SELECT a.status INTO recipient_status
-    FROM banking.accounts a
-    WHERE a.account_id = to_id
-    FOR UPDATE;
-
-    IF NOT FOUND THEN
+    IF NOT found_recipient THEN
         RAISE EXCEPTION 'Recipient account % does not exist', to_id;
     END IF;
 
@@ -109,3 +121,7 @@ BEGIN
     VALUES (to_id, amount, 'deposit', tx_ref);
 END;
 $$ LANGUAGE plpgsql;
+
+-- Performance indexes for the transactions table
+CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON banking.transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_reference ON banking.transactions(reference);

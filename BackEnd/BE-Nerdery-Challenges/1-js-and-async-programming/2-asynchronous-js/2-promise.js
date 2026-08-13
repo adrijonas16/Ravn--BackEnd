@@ -44,9 +44,12 @@ const getUsersWithMoreDislikedMoviesThanLikedMovies = () => {
   );
 };
 
-getUsersWithMoreDislikedMoviesThanLikedMovies().then((users) => {
-  console.log("Users with more disliked movies than liked movies:");
-  users.forEach((user) => {
-    console.log(user);
+getUsersWithMoreDislikedMoviesThanLikedMovies()
+  .then((users) => {
+    users.forEach((user) => {
+      console.log(user);
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to fetch data:", error);
   });
-});

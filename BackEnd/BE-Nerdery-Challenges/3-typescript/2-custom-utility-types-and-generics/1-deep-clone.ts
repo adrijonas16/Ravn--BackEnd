@@ -11,10 +11,17 @@
  * - The function should not use any external libraries
  */
 
+// Note: circular references are out of scope for this implementation.
+// Passing an object that references itself will cause infinite recursion.
 function deepClone<T>(value: T): T {
   // Handle null and primitives
   if (value === null || typeof value !== "object") {
     return value;
+  }
+
+  // Handle Date objects
+  if (value instanceof Date) {
+    return new Date(value.getTime()) as T;
   }
 
   // Handle arrays

@@ -25,41 +25,45 @@ const {
 } = require("./utils/mocked-api");
 
 const getCommonDislikedSubscription = async () => {
-  const [users, likedMovies, dislikedMovies] = await Promise.all([
-    getUsers(),
-    getLikedMovies(),
-    getDislikedMovies(),
-  ]);
+  try {
+    const [users, likedMovies, dislikedMovies] = await Promise.all([
+      getUsers(),
+      getLikedMovies(),
+      getDislikedMovies(),
+    ]);
 
-  const harshReviewers = users.filter((user) => {
-    const liked = likedMovies.find((l) => l.userId === user.id);
-    const disliked = dislikedMovies.find((d) => d.userId === user.id);
-    const likedCount = liked ? liked.movies.length : 0;
-    const dislikedCount = disliked ? disliked.movies.length : 0;
-    return dislikedCount > likedCount;
-  });
+    const harshReviewers = users.filter((user) => {
+      const liked = likedMovies.find((l) => l.userId === user.id);
+      const disliked = dislikedMovies.find((d) => d.userId === user.id);
+      const likedCount = liked ? liked.movies.length : 0;
+      const dislikedCount = disliked ? disliked.movies.length : 0;
+      return dislikedCount > likedCount;
+    });
 
-  const subscriptions = await Promise.all(
-    harshReviewers.map((user) => getUserSubscriptionByUserId(user.id))
-  );
+    const subscriptions = await Promise.all(
+      harshReviewers.map((user) => getUserSubscriptionByUserId(user.id))
+    );
 
-  const counts = {};
-  for (const sub of subscriptions) {
-    counts[sub.subscription] = (counts[sub.subscription] || 0) + 1;
-  }
-
-  let mostCommon = "";
-  let maxCount = 0;
-  for (const [name, count] of Object.entries(counts)) {
-    if (count > maxCount) {
-      mostCommon = name;
-      maxCount = count;
+    const counts = {};
+    for (const sub of subscriptions) {
+      counts[sub.subscription] = (counts[sub.subscription] || 0) + 1;
     }
-  }
 
-  return mostCommon;
+    let mostCommon = "";
+    let maxCount = 0;
+    for (const [name, count] of Object.entries(counts)) {
+      if (count > maxCount) {
+        mostCommon = name;
+        maxCount = count;
+      }
+    }
+
+    return mostCommon;
+  } catch (error) {
+    console.error("Failed to fetch data:", error);
+  }
 };
 
 getCommonDislikedSubscription().then((subscription) => {
-  console.log("Common more dislike subscription is:", subscription);
+  console.log(subscription);
 });
