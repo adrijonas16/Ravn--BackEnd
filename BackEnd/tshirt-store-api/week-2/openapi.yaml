@@ -17,7 +17,7 @@ tags:
     description: Authentication and password management
   - name: Products
     description: Product catalog (public + manager CRUD)
-  - name: SKUs
+  - name: Product Variants
     description: Product variants (size + color + price + stock)
   - name: Categories
     description: Product categories
@@ -72,8 +72,8 @@ components:
       schema:
         type: integer
         format: int64
-    SkuIdParam:
-      name: skuId
+    ProductVariantIdParam:
+      name: productVariantId
       in: path
       required: true
       schema:
@@ -342,7 +342,7 @@ components:
         minPrice:
           type: number
           format: float
-          description: Lowest SKU price for this product
+          description: Lowest variant price for this product
         createdAt:
           type: string
           format: date-time
@@ -356,10 +356,10 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/ProductImage"
-            skus:
+            variants:
               type: array
               items:
-                $ref: "#/components/schemas/Sku"
+                $ref: "#/components/schemas/ProductVariant"
 
     CreateProductRequest:
       type: object
@@ -403,8 +403,8 @@ components:
         isPrimary:
           type: boolean
 
-    # ── SKU ──
-    Sku:
+    # ── Product Variant ──
+    ProductVariant:
       type: object
       properties:
         id:
@@ -432,7 +432,7 @@ components:
         isActive:
           type: boolean
 
-    CreateSkuRequest:
+    CreateProductVariantRequest:
       type: object
       required: [sizeId, colorId, sku, price, stock]
       properties:
@@ -452,7 +452,7 @@ components:
           type: integer
           minimum: 0
 
-    UpdateSkuRequest:
+    UpdateProductVariantRequest:
       type: object
       properties:
         price:
@@ -486,7 +486,7 @@ components:
         id:
           type: integer
           format: int64
-        productSkuId:
+        productVariantId:
           type: integer
           format: int64
         productName:
@@ -512,9 +512,9 @@ components:
 
     AddCartItemRequest:
       type: object
-      required: [productSkuId, quantity]
+      required: [productVariantId, quantity]
       properties:
-        productSkuId:
+        productVariantId:
           type: integer
           format: int64
         quantity:
@@ -682,9 +682,9 @@ components:
 
     CreatePaymentLinkRequest:
       type: object
-      required: [productSkuId, quantity, addressId]
+      required: [productVariantId, quantity, addressId]
       properties:
-        productSkuId:
+        productVariantId:
           type: integer
           format: int64
         quantity:
@@ -1163,7 +1163,7 @@ paths:
         - $ref: "#/components/parameters/ProductIdParam"
       responses:
         "200":
-          description: Product detail with SKUs and images
+          description: Product detail with variants and images
           content:
             application/json:
               schema:
@@ -1333,24 +1333,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  # ── SKUs ──────────────────────────────────────────────────────────
+  # ── Product Variants ──────────────────────────────────────────────────────────
 
-  /products/{productId}/skus:
+  /products/{productId}/variants:
     get:
-      tags: [SKUs]
-      summary: List SKUs for a product (public)
-      operationId: listSkus
+      tags: [Product Variants]
+      summary: List product variants for a product (public)
+      operationId: listProductVariants
       parameters:
         - $ref: "#/components/parameters/ProductIdParam"
       responses:
         "200":
-          description: List of SKUs
+          description: List of product variants
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Sku"
+                  $ref: "#/components/schemas/ProductVariant"
         "404":
           description: Product not found
           content:
@@ -1359,9 +1359,9 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
-      tags: [SKUs]
-      summary: Create a SKU for a product (manager only)
-      operationId: createSku
+      tags: [Product Variants]
+      summary: Create a product variant for a product (manager only)
+      operationId: createProductVariant
       security:
         - BearerAuth: []
       parameters:
@@ -1371,14 +1371,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateSkuRequest"
+              $ref: "#/components/schemas/CreateProductVariantRequest"
       responses:
         "201":
-          description: SKU created
+          description: Product variant created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Sku"
+                $ref: "#/components/schemas/ProductVariant"
         "400":
           description: Validation error or duplicate size+color combination
           content:
@@ -1398,29 +1398,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /products/{productId}/skus/{skuId}:
+  /products/{productId}/variants/{productVariantId}:
     patch:
-      tags: [SKUs]
-      summary: Update a SKU (manager only)
-      operationId: updateSku
+      tags: [Product Variants]
+      summary: Update a product variant (manager only)
+      operationId: updateProductVariant
       security:
         - BearerAuth: []
       parameters:
         - $ref: "#/components/parameters/ProductIdParam"
-        - $ref: "#/components/parameters/SkuIdParam"
+        - $ref: "#/components/parameters/ProductVariantIdParam"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateSkuRequest"
+              $ref: "#/components/schemas/UpdateProductVariantRequest"
       responses:
         "200":
-          description: SKU updated
+          description: Product variant updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Sku"
+                $ref: "#/components/schemas/ProductVariant"
         "401":
           description: Not authenticated
           content:
@@ -1434,7 +1434,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: SKU not found
+          description: Product variant not found
           content:
             application/json:
               schema:

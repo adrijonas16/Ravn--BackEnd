@@ -14,7 +14,7 @@ that will be implemented in Week 3.
 
 - Auth and password reset
 - Product catalog
-- Product SKUs
+- Product variants
 - Product images
 - Categories
 - Customer addresses
@@ -45,10 +45,9 @@ Before submitting:
 1. Open `openapi.yaml` in Swagger Editor.
 2. Confirm the specification parses with no errors.
 3. Confirm every endpoint renders correctly.
-4. Confirm the main resources are present: auth, products, SKUs, cart, orders,
-   payments, addresses, likes, promo codes, and delivery.
+4. Confirm the main resources are present: auth, products, product variants,
+   cart, orders, payments, addresses, likes, promo codes, and delivery.
 5. Confirm protected endpoints show the bearer auth requirement.
 6. Confirm common failure responses are documented, especially `400`, `401`,
    `403`, `404`, and `409` where they apply.
 7. Submit `openapi.yaml` as the Week 2 API contract.
-

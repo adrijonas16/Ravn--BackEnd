@@ -95,22 +95,24 @@ Things to defend:
 - Product responses include category, image, likes, and minimum price so the
   frontend does not need many extra calls per product.
 
-### SKUs
+### Product Variants
 
-SKUs represent product variants: size, color, price, and stock.
+Product variants represent each sellable size/color combination. Each variant
+has its own stock, price, and `sku` code.
 
 Main endpoints:
 
-- `GET /products/{productId}/skus`
-- `POST /products/{productId}/skus`
-- `PATCH /products/{productId}/skus/{skuId}`
+- `GET /products/{productId}/variants`
+- `POST /products/{productId}/variants`
+- `PATCH /products/{productId}/variants/{productVariantId}`
 
 Things to defend:
 
-- SKUs are nested under products because they belong to a specific product.
+- Product variants are nested under products because they belong to a specific
+  product.
 - Stock and price live on the SKU, not the product, because each size/color
   combination can have different inventory and price.
-- Creating or updating SKUs is manager-only.
+- Creating or updating product variants is manager-only.
 
 ### Categories
 
@@ -322,7 +324,7 @@ Role examples:
 
 - Public users can list and view products.
 - Clients can manage their own cart, addresses, likes, and orders.
-- Managers can manage products, SKUs, promo codes, and order status.
+- Managers can manage products, product variants, promo codes, and order status.
 - Delivery persons can view assigned orders and mark them as delivered.
 
 ### Error Shape
@@ -410,7 +412,7 @@ Examples:
 Adding optional response fields is usually safe because existing consumers can
 ignore them.
 
-### Why are SKUs nested under products?
+### Why are product variants nested under products?
 
 Because a SKU is a product variant. It does not make sense without its product,
 and the product owns the size/color/price/stock variants.
@@ -436,4 +438,3 @@ authentication scheme, and role boundaries that the Week 3 NestJS
 implementation should follow. The goal is to make the API predictable for
 consumers before implementation starts.
 ```
-
