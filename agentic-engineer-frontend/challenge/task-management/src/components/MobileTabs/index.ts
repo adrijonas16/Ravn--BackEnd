@@ -1,1 +1,0 @@
-export { MobileTabs } from './MobileTabs';

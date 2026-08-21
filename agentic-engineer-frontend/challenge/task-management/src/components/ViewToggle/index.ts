@@ -1,1 +1,0 @@
-export { ViewToggle } from './ViewToggle';
