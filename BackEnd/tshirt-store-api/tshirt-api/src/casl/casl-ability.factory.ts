@@ -9,10 +9,9 @@ import {
   AbilityBuilder,
   createMongoAbility,
   MongoAbility,
-  InferSubjects,
 } from '@casl/ability';
 import { Injectable } from '@nestjs/common';
-import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
 // Acciones posibles — 'manage' significa TODAS las acciones (create + read + update + delete)
 export type Actions = 'manage' | 'create' | 'read' | 'update' | 'delete';

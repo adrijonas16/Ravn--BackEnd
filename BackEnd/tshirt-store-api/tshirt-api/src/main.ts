@@ -19,7 +19,16 @@ async function bootstrap() {
   });
 
   // Helmet: middleware que añade headers HTTP de seguridad automáticamente
-  app.use(helmet());
+  app.use(
+    helmet({
+      hsts: false,
+      contentSecurityPolicy: {
+        directives: {
+          upgradeInsecureRequests: null,
+        },
+      },
+    }),
+  );
   // CORS: permite que el frontend (en otro dominio/puerto) haga peticiones a esta API
   app.enableCors();
   // Prefijo global: todas las rutas empiezan con /api/v1 (ej: /api/v1/products)

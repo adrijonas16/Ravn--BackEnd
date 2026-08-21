@@ -44,6 +44,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     // Este objeto queda disponible como req.user en los controladores protegidos
-    return { id: user.id, email: user.email, role: user.role.name };
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role.name,
+    };
   }
 }

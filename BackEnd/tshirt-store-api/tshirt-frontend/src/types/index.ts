@@ -13,6 +13,10 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface CurrentUserResponse {
+  user: User;
+}
+
 export interface Category {
   id: number;
   name: string;

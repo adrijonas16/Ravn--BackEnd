@@ -8,11 +8,15 @@ import { PrismaModule } from './prisma/prisma.module';
 // CaslModule: sistema de permisos basado en roles (quién puede hacer qué)
 import { CaslModule } from './casl/casl.module';
 import { AuthModule } from './auth/auth.module';
+import { AddressesModule } from './addresses/addresses.module';
+import { CategoriesModule } from './categories/categories.module';
 import { ProductsModule } from './products/products.module';
 import { LikesModule } from './likes/likes.module';
 import { CartModule } from './cart/cart.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PromoCodesModule } from './promo-codes/promo-codes.module';
+import { DeliveryModule } from './delivery/delivery.module';
 // WebhooksModule: recibe notificaciones de Stripe cuando un pago se completa
 import { WebhooksModule } from './webhooks/webhooks.module';
 
@@ -28,11 +32,15 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     PrismaModule,
     CaslModule,
     AuthModule,
+    AddressesModule,
+    CategoriesModule,
     ProductsModule,
     LikesModule,
     CartModule,
     OrdersModule,
     PaymentsModule,
+    PromoCodesModule,
+    DeliveryModule,
     WebhooksModule,
   ],
 })

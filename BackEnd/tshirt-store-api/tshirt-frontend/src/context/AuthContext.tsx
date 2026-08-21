@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
+import { authApi } from '../api/auth';
 
 interface AuthContextType {
   user: User | null;
@@ -7,6 +8,7 @@ interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,15 +16,43 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // Al montar, recupera la sesión guardada en localStorage
+  // Al montar, valida la sesión guardada contra el backend.
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (savedToken && savedUser) {
+    let active = true;
+
+    async function validateSavedSession() {
+      const savedToken = localStorage.getItem('token');
+
+      if (!savedToken) {
+        if (active) setIsAuthLoading(false);
+        return;
+      }
+
       setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+
+      try {
+        const { data } = await authApi.me();
+        localStorage.setItem('user', JSON.stringify(data.user));
+        if (active) setUser(data.user);
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        if (active) {
+          setToken(null);
+          setUser(null);
+        }
+      } finally {
+        if (active) setIsAuthLoading(false);
+      }
     }
+
+    void validateSavedSession();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = (newToken: string, newUser: User) => {
@@ -40,7 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider
+      value={{ user, token, login, logout, isAuthenticated: !!token, isAuthLoading }}
+    >
       {children}
     </AuthContext.Provider>
   );

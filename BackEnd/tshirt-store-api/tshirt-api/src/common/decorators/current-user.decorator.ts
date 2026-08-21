@@ -1,12 +1,6 @@
 // createParamDecorator: permite crear decoradores personalizados para parámetros de métodos
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-
-// Tipo que define la forma del usuario autenticado (extraído del token JWT)
-export class AuthenticatedUser {
-  id: number;
-  email: string;
-  role: string;
-}
+import type { AuthenticatedUser } from '../types/authenticated-user.type';
 
 // ─── DECORADOR @CurrentUser() ───
 // Decorador de parámetro personalizado que extrae el usuario del request
@@ -28,3 +22,5 @@ export const CurrentUser = createParamDecorator(
     return data ? user?.[data] : user;
   },
 );
+
+export type { AuthenticatedUser };

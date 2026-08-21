@@ -1,5 +1,5 @@
 import api from './client';
-import { AuthResponse } from '../types';
+import { AuthResponse, CurrentUserResponse } from '../types';
 
 export const authApi = {
   signUp: (data: { email: string; password: string; firstName: string; lastName: string }) =>
@@ -7,6 +7,8 @@ export const authApi = {
 
   signIn: (data: { email: string; password: string }) =>
     api.post<AuthResponse>('/auth/signin', data),
+
+  me: () => api.get<CurrentUserResponse>('/auth/me'),
 
   signOut: () => api.post('/auth/signout'),
 };

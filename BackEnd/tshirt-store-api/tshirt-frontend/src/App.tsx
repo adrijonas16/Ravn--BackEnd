@@ -11,7 +11,8 @@ import { ReactNode } from 'react';
 
 // Ruta protegida: redirige al login si no está autenticado
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthLoading } = useAuth();
+  if (isAuthLoading) return null;
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
 }
 
