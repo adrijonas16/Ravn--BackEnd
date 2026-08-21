@@ -1,10 +1,21 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Get,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/signup.dto';
 import { SignInDto } from './dto/signin.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
 // @ApiTags agrupa estos endpoints bajo "Auth" en la documentación Swagger
 @ApiTags('Auth')
@@ -28,6 +39,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Sign in with email and password' })
   signIn(@Body() dto: SignInDto) {
     return this.authService.signIn(dto);
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Validate token and return current user' })
+  me(@CurrentUser() user: AuthenticatedUser) {
+    return { user };
   }
 
   @Post('signout')

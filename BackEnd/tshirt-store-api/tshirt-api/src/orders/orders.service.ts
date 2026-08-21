@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStatus } from '@prisma/client';
-import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
 // Máquina de estados: define qué transiciones de estado son válidas
 // Ej: de "paid" solo puede ir a "processing" o "cancelled", nunca a "delivered" directamente

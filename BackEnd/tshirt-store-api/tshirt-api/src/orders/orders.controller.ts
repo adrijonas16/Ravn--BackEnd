@@ -18,10 +18,8 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../common/guards/roles.guard';
-import {
-  CurrentUser,
-  AuthenticatedUser,
-} from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
 @ApiTags('Orders')
 @Controller('orders')

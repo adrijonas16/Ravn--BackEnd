@@ -9,10 +9,8 @@ import {
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import {
-  CurrentUser,
-  AuthenticatedUser,
-} from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
 @ApiTags('Payments')
 @Controller()
