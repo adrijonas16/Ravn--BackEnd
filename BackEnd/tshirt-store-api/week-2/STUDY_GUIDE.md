@@ -44,7 +44,7 @@ Example:
 {
   "id": 1,
   "orderNumber": "ORD-2026-0001",
-  "currentStatus": "pending",
+  "orderStatus": "pending",
   "totalAmount": 59.98
 }
 ```
@@ -401,7 +401,7 @@ consumer.
 
 Examples:
 
-- Renaming `currentStatus` to `status`.
+- Renaming `orderStatus` to `status`.
 - Changing `totalAmount` from number to string.
 - Adding a new required request field.
 - Changing `401` to `403` without a clear reason.

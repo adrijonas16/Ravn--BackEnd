@@ -538,7 +538,7 @@ components:
           format: int64
         orderNumber:
           type: string
-        currentStatus:
+        orderStatus:
           type: string
           enum: [pending, paid, processing, shipped, delivered, cancelled]
         subtotal:
@@ -627,11 +627,9 @@ components:
     StatusHistoryEntry:
       type: object
       properties:
-        fromStatus:
+        orderStatus:
           type: string
-          nullable: true
-        toStatus:
-          type: string
+          enum: [pending, paid, processing, shipped, delivered, cancelled]
         changedBy:
           type: string
           nullable: true
@@ -719,6 +717,10 @@ components:
         discountValue:
           type: number
           format: float
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
         expiresAt:
           type: string
           format: date-time
@@ -746,6 +748,10 @@ components:
           type: number
           format: float
           minimum: 0.01
+        startsAt:
+          type: string
+          format: date-time
+          nullable: true
         expiresAt:
           type: string
           format: date-time
