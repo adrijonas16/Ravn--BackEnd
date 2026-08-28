@@ -2,10 +2,15 @@ import { BadRequestException } from '@nestjs/common';
 import { PaymentStatus } from '@prisma/client';
 import { WebhooksService } from './webhooks.service';
 
+jest.mock('@nestjs/bullmq', () => ({
+  InjectQueue: () => () => undefined,
+}));
+
 describe('WebhooksService', () => {
   let service: WebhooksService;
   let prisma: Record<string, any>;
   let tx: Record<string, any>;
+  let notificationsQueue: Record<string, any>;
 
   beforeEach(() => {
     tx = {
@@ -41,12 +46,16 @@ describe('WebhooksService', () => {
         update: jest.fn(),
       },
     };
+    notificationsQueue = {
+      enqueueLowStockNotification: jest.fn(),
+    };
 
     service = new WebhooksService(
       prisma as any,
       {
         get: jest.fn((key: string, fallback: string) => fallback),
       } as any,
+      notificationsQueue as any,
     );
   });
 
@@ -89,6 +98,36 @@ describe('WebhooksService', () => {
         stockAfter: 6,
       },
     });
+    expect(
+      notificationsQueue.enqueueLowStockNotification,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('should enqueue low stock notifications after stock crosses threshold', async () => {
+    tx.order.findUnique.mockResolvedValue({
+      id: 1,
+      currentStatus: 'pending',
+      user: { id: 7, email: 'client@test.com' },
+      items: [
+        {
+          productVariantId: 10,
+          productVariant: { stock: 4, productId: 20 },
+          quantity: 2,
+          skuCode: 'TEE-BLK-M',
+        },
+      ],
+    });
+    tx.productVariant.update.mockResolvedValue({ stock: 2 });
+
+    await (service as any).processPaymentSuccess(1, 'cs_test_123');
+
+    expect(notificationsQueue.enqueueLowStockNotification).toHaveBeenCalledWith(
+      {
+        productId: 20,
+        productVariantId: 10,
+        stock: 2,
+      },
+    );
   });
 
   it('should fail payment and not decrement stock when inventory is insufficient', async () => {

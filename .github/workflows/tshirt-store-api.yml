@@ -1,0 +1,116 @@
+name: T-Shirt Store API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'BackEnd/tshirt-store-api/**'
+      - '.github/workflows/tshirt-store-api.yml'
+  pull_request:
+    paths:
+      - 'BackEnd/tshirt-store-api/**'
+      - '.github/workflows/tshirt-store-api.yml'
+
+jobs:
+  api:
+    name: API build and tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: pass_nerdery
+          POSTGRES_DB: tshirt_store
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d tshirt_store"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: BackEnd/tshirt-store-api/tshirt-api
+
+    env:
+      DATABASE_URL: postgresql://postgres:pass_nerdery@127.0.0.1:5433/tshirt_store?schema=public
+      TEST_DATABASE_URL: postgresql://postgres:pass_nerdery@127.0.0.1:5433/tshirt_store?schema=tshirt_store_test
+      JWT_SECRET: ci-jwt-secret
+      JWT_EXPIRATION: 15m
+      JWT_REFRESH_EXPIRATION_DAYS: 7
+      STRIPE_SECRET_KEY: sk_test_placeholder
+      STRIPE_WEBHOOK_SECRET: whsec_placeholder
+      STRIPE_SUCCESS_URL: http://localhost:5173/orders
+      STRIPE_CANCEL_URL: http://localhost:5173/checkout
+      QUEUES_ENABLED: 'false'
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: BackEnd/tshirt-store-api/tshirt-api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Build API
+        run: npm run build
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: BackEnd/tshirt-store-api/tshirt-frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: BackEnd/tshirt-store-api/tshirt-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build

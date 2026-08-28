@@ -1,7 +1,9 @@
 // @Module: decorador que define un módulo en NestJS (agrupa controladores, servicios, etc.)
 import { Module } from '@nestjs/common';
 // ConfigModule: permite leer variables de entorno desde .env en toda la app
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
+import { LoggerModule } from 'nestjs-pino';
 // ThrottlerModule: protección contra abuso (rate limiting) — limita peticiones por IP
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
@@ -27,6 +29,29 @@ import { NotificationsModule } from './notifications/notifications.module';
   imports: [
     // isGlobal: true — hace que ConfigService esté disponible en TODOS los módulos sin reimportarlo
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level: process.env.LOG_LEVEL ?? 'info',
+        redact: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'req.body.password',
+          'req.body.newPassword',
+          'req.body.refreshToken',
+          'res.headers["set-cookie"]',
+        ],
+      },
+    }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get('REDIS_HOST', 'localhost'),
+          port: Number(config.get('REDIS_PORT', 6379)),
+          maxRetriesPerRequest: null,
+        },
+      }),
+    }),
     // Rate limiting: máximo 10 peticiones por IP cada 60 segundos (60000 ms)
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }]),
     // PrismaModule: acceso a la base de datos via Prisma ORM

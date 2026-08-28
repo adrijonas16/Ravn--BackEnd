@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
+import { NotificationsQueueService } from '../notifications/notifications-queue.service';
+import { LowStockNotificationJobDto } from '../notifications/dto/low-stock-notification-job.dto';
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -20,6 +22,7 @@ export class WebhooksService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private notificationsQueue: NotificationsQueueService,
   ) {
     this.stripe = new Stripe(
       this.config.get('STRIPE_SECRET_KEY', 'sk_test_placeholder'),
@@ -173,6 +176,7 @@ export class WebhooksService {
     orderId: number,
     providerPaymentId: string,
   ) {
+    const lowStockJobs: LowStockNotificationJobDto[] = [];
     // $transaction: ejecuta todo dentro de una transacción de BD
     // Si cualquier operación falla, TODAS se revierten (atomicidad)
     // Esto evita inconsistencias como: orden marcada como pagada pero stock sin descontar
@@ -218,11 +222,6 @@ export class WebhooksService {
         data: { status: PaymentStatus.succeeded, paidAt: new Date() },
       });
 
-      const managers = await tx.user.findMany({
-        where: { role: { name: 'manager' }, status: 'active' },
-        select: { id: true, email: true },
-      });
-
       // Por cada item de la orden: descuenta stock y registra el movimiento de inventario
       for (const item of order.items) {
         // decrement: operación atómica de Prisma — resta la cantidad directamente en la BD
@@ -252,20 +251,20 @@ export class WebhooksService {
           this.logger.log(
             `Low stock alert: SKU ${item.productVariantId} now at ${sku.stock}`,
           );
-          if (managers.length > 0) {
-            await tx.notification.createMany({
-              data: managers.map((manager) => ({
-                userId: manager.id,
-                productId: item.productVariant.productId,
-                productVariantId: item.productVariantId,
-                type: 'low_stock',
-                recipientEmail: manager.email,
-              })),
-            });
-          }
+          lowStockJobs.push({
+            productId: item.productVariant.productId,
+            productVariantId: item.productVariantId,
+            stock: sku.stock,
+          });
         }
       }
     });
+
+    await Promise.all(
+      lowStockJobs.map((job) =>
+        this.notificationsQueue.enqueueLowStockNotification(job),
+      ),
+    );
   }
 
   private async processPaymentFailure(

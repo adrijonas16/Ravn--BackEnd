@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { LowStockNotificationJobDto } from './dto/low-stock-notification-job.dto';
 
 @Injectable()
 export class NotificationsService {
@@ -21,6 +22,25 @@ export class NotificationsService {
           },
         },
       },
+    });
+  }
+
+  async createLowStockNotifications(payload: LowStockNotificationJobDto) {
+    const managers = await this.prisma.user.findMany({
+      where: { role: { name: 'manager' }, status: 'active' },
+      select: { id: true, email: true },
+    });
+
+    if (managers.length === 0) return;
+
+    await this.prisma.notification.createMany({
+      data: managers.map((manager) => ({
+        userId: manager.id,
+        productId: payload.productId,
+        productVariantId: payload.productVariantId,
+        type: 'low_stock',
+        recipientEmail: manager.email,
+      })),
     });
   }
 }

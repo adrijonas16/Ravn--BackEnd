@@ -49,7 +49,7 @@ flowchart TB
 5. Stripe Payment Links handle checkout payment collection.
 6. Stripe webhooks confirm payment success, payment failure, or expiration.
 7. Successful payment webhooks update the order, store the webhook event, decrement stock, and create inventory movements.
-8. Redis and BullMQ support asynchronous work such as notifications and retryable background jobs.
+8. Redis and BullMQ process low-stock notification jobs asynchronously with retry/backoff.
 
 ## Core Components
 
@@ -59,9 +59,11 @@ flowchart TB
 | NestJS API | Auth, products, variants, cart, orders, payments, promos, delivery, notifications |
 | PostgreSQL | Source of truth for users, products, carts, orders, payments, webhooks, stock, likes |
 | Prisma | Type-safe database access and migrations |
-| Redis / BullMQ | Queue infrastructure for async jobs and retries |
+| Redis / BullMQ | Queue infrastructure for low-stock notifications and retryable async jobs |
 | Stripe | Payment collection and payment lifecycle events |
 | Webhook table | Idempotency record for Stripe events already received |
+| GitHub Actions | CI gate for install, Prisma generate, lint, unit tests, e2e tests, and builds |
+| Pino logs | Structured JSON logs with redaction for auth headers, tokens, and passwords |
 
 ## Access Boundaries
 
@@ -78,3 +80,5 @@ flowchart TB
 - Stripe webhook events are stored before processing to avoid duplicate handling.
 - Stock is decremented only after confirmed payment success.
 - Failed or expired Stripe payments update payment/order state without reducing inventory.
+- Low-stock notification jobs retry up to three times with exponential backoff.
+- CI runs against real PostgreSQL and Redis services.

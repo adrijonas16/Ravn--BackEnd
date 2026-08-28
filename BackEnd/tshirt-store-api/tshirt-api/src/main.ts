@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 // Swagger: genera documentación interactiva de la API (como Postman pero automático)
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino';
 // Helmet: agrega headers de seguridad HTTP automáticamente (protege contra XSS, clickjacking, etc.)
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -16,7 +17,9 @@ async function bootstrap() {
     // rawBody: necesario para verificar la firma del webhook de Stripe
     // Sin esto, Stripe no puede confirmar que el webhook es auténtico
     rawBody: true,
+    bufferLogs: true,
   });
+  app.useLogger(app.get(Logger));
 
   // Helmet: middleware que añade headers HTTP de seguridad automáticamente
   app.use(

@@ -31,7 +31,7 @@
 | PgBouncer | Connection pooling (transaction mode, ~20 server connections per pod) -- prevents exhausting the 100-connection limit on RDS |
 | PostgreSQL (RDS) | Single writer for OLTP; read replicas for reporting queries and order history listing |
 | Redis (ElastiCache) | BullMQ job broker, optional session/cache store |
-| BullMQ workers | Async jobs: email notifications, Stripe webhook retry, inventory reconciliation |
+| BullMQ workers | Async jobs: low-stock notifications, email-style notifications, retryable background work |
 | Stripe | Payment processing via Payment Links and webhooks |
 
 ## Queue Decision: Why BullMQ
@@ -111,3 +111,9 @@ Pipeline stages:
 - Structured JSON logs (NestJS + Pino) shipped to CloudWatch Logs or Datadog.
 - Request-id correlation header propagated through all layers.
 - Sensitive fields (password, token) redacted at the logger level.
+
+## Implementation Notes
+
+- The current API uses BullMQ with Redis for low-stock notification jobs.
+- Low-stock jobs are queued after the payment/stock transaction commits and retry up to three times with exponential backoff.
+- GitHub Actions runs install, Prisma generate, lint, unit tests, e2e tests, and build for the API, plus lint/build for the frontend.
