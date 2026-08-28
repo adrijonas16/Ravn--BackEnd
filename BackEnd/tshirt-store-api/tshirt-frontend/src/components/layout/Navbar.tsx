@@ -1,301 +1,224 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Bell, Heart, Menu, Package, Settings, ShoppingBag, Shirt, TicketPercent, Trash2, User, X } from 'lucide-react';
 import { authApi } from '../../api/auth';
-import { ShoppingCart, Package, LogOut, User, Menu, X, Shirt } from 'lucide-react';
+import { cartApi } from '../../api/cart';
+import { notificationsApi, NotificationItem } from '../../api/notifications';
+import { useAuth } from '../../context/useAuth';
+import { Cart } from '../../types';
+import { AUTH_REFRESH_TOKEN_KEY } from '../../utils/authStorage';
+
+const NOTIFICATION_LABELS: Record<string, string> = {
+  low_stock: 'Low stock alert',
+  order_paid: 'Order paid',
+  order_processing: 'Order processing',
+  order_shipped: 'Order shipped',
+  order_delivered: 'Order delivered',
+  order_cancelled: 'Order cancelled',
+};
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [scrolled, setScrolled] = useState(false);
+  const [cart, setCart] = useState<Cart | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const canShop = user?.role === 'client';
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  const cartCount = cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+
+  const loadCart = useCallback(() => {
+    if (!isAuthenticated || !canShop) {
+      setCart(null);
+      return;
+    }
+    cartApi.get()
+      .then(({ data }) => {
+      setCart(data);
+    })
+      .catch(() => {});
+  }, [canShop, isAuthenticated]);
+
+  const loadNotifications = useCallback(() => {
+    if (!isAuthenticated) return;
+    notificationsApi.list()
+      .then(({ data }) => {
+      setNotifications(data);
+    })
+      .catch(() => {});
+  }, [isAuthenticated]);
 
   useEffect(() => {
     setMobileOpen(false);
-  }, [location.pathname]);
+    loadCart();
+    loadNotifications();
+  }, [location.pathname, loadCart, loadNotifications]);
+
+  useEffect(() => {
+    const onCartUpdated = () => {
+      loadCart();
+      setCartOpen(true);
+    };
+    window.addEventListener('cart:updated', onCartUpdated);
+    return () => window.removeEventListener('cart:updated', onCartUpdated);
+  }, [loadCart]);
+
+  const removeItem = async (itemId: number) => {
+    try {
+      await cartApi.removeItem(itemId);
+      loadCart();
+    } catch { /* ignore */ }
+  };
 
   const handleLogout = async () => {
     try {
-      await authApi.signOut();
+      await authApi.signOut(localStorage.getItem(AUTH_REFRESH_TOKEN_KEY) ?? undefined);
     } catch { /* ignore */ }
     logout();
+    setCart(null);
     navigate('/login');
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  const goToCheckout = async () => {
+    if (!canShop) {
+      setCartOpen(false);
+      navigate('/orders');
+      return;
+    }
+    try {
+      const { data } = await cartApi.get();
+      setCart(data);
+      if (data.items.length === 0) return;
+      setCartOpen(false);
+      navigate('/checkout');
+    } catch { /* ignore */ }
+  };
 
-  const navLinkStyle = (path: string): React.CSSProperties => ({
-    color: isActive(path) ? '#00cec9' : '#b0b0c0',
-    textDecoration: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    fontSize: '0.9rem',
-    fontWeight: isActive(path) ? 600 : 400,
-    padding: '0.5rem 0.75rem',
-    borderRadius: '8px',
-    transition: 'all 0.2s ease',
-    background: isActive(path) ? 'rgba(0, 206, 201, 0.08)' : 'transparent',
-  });
+  const navLinkClass = (path: string) => `store-nav__link ${location.pathname === path ? 'store-nav__link--active' : ''}`;
 
   return (
     <>
-      <nav style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: scrolled ? '0.6rem 2rem' : '0.8rem 2rem',
-        background: scrolled
-          ? 'rgba(10, 10, 26, 0.85)'
-          : 'rgba(10, 10, 26, 0.6)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(108, 92, 231, 0.15)',
-        transition: 'all 0.3s ease',
-      }}>
-        {/* Logo */}
-        <Link to="/" style={{
-          color: 'white',
-          textDecoration: 'none',
-          fontSize: '1.3rem',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          letterSpacing: '-0.02em',
-        }}>
-          <div style={{
-            width: 36,
-            height: 36,
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <Shirt size={20} color="white" />
-          </div>
-          <span style={{ background: 'linear-gradient(135deg, #ffffff, #b0b0c0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+      <nav className="store-nav">
+        <div className="store-nav__inner store-container">
+          <Link to="/" className="store-nav__brand">
+            <span className="store-nav__brand-mark"><Shirt size={20} /></span>
             ThreadVault
-          </span>
-        </Link>
-
-        {/* Desktop Nav */}
-        <div style={{
-          display: 'flex',
-          gap: '0.25rem',
-          alignItems: 'center',
-        }}
-          className="desktop-nav"
-        >
-          <Link to="/" style={navLinkStyle('/')}>
-            <Shirt size={16} />
-            Products
           </Link>
 
-          {isAuthenticated ? (
-            <>
-              <Link to="/cart" style={navLinkStyle('/cart')}>
-                <ShoppingCart size={16} />
-                Cart
-              </Link>
+          <div className="store-nav__links">
+            <Link to="/" className={navLinkClass('/')}>Shop</Link>
+            {isAuthenticated && <Link to="/saved" className={navLinkClass('/saved')}><Heart size={15} /> Saved</Link>}
+            {isAuthenticated && <Link to="/orders" className={navLinkClass('/orders')}><Package size={15} /> Orders</Link>}
+            {user?.role === 'manager' && <Link to="/admin/products" className={navLinkClass('/admin/products')}><Settings size={15} /> Products</Link>}
+            {user?.role === 'manager' && <Link to="/admin/promos" className={navLinkClass('/admin/promos')}><TicketPercent size={15} /> Promos</Link>}
+          </div>
 
-              <Link to="/orders" style={navLinkStyle('/orders')}>
-                <Package size={16} />
-                Orders
-              </Link>
+          <div className="store-nav__actions">
+            {isAuthenticated ? (
+              <>
+                <button className="store-nav__icon-button" onClick={() => { setNotificationsOpen(true); setCartOpen(false); loadNotifications(); }} aria-label="Notifications">
+                  <Bell size={19} />
+                  {notifications.length > 0 && <span className="store-nav__badge">{notifications.length}</span>}
+                </button>
+                {canShop && (
+                  <button className="store-nav__icon-button" onClick={() => { setCartOpen(true); setNotificationsOpen(false); loadCart(); }} aria-label="Cart">
+                    <ShoppingBag size={19} />
+                    {cartCount > 0 && <span className="store-nav__badge">{cartCount}</span>}
+                  </button>
+                )}
+                <Link to="/profile" className={navLinkClass('/profile')}><User size={15} /> {user?.firstName}</Link>
+                <button className="store-nav__signout" onClick={handleLogout}>Sign out</button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className={navLinkClass('/login')}>Sign in</Link>
+                <Link to="/register" className="store-nav__cta">Create account</Link>
+              </>
+            )}
+          </div>
 
-              <div style={{
-                width: '1px',
-                height: '24px',
-                background: 'rgba(108, 92, 231, 0.3)',
-                margin: '0 0.5rem',
-              }} />
-
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.4rem 0.75rem',
-                background: 'rgba(108, 92, 231, 0.1)',
-                borderRadius: '8px',
-                border: '1px solid rgba(108, 92, 231, 0.2)',
-              }}>
-                <div style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  <User size={14} color="white" />
-                </div>
-                <span style={{ color: '#b0b0c0', fontSize: '0.85rem', fontWeight: 500 }}>
-                  {user?.firstName}
-                </span>
-              </div>
-
-              <button
-                onClick={handleLogout}
-                style={{
-                  background: 'rgba(233, 69, 96, 0.1)',
-                  color: '#e94560',
-                  border: '1px solid rgba(233, 69, 96, 0.25)',
-                  padding: '0.5rem 0.85rem',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                  transition: 'all 0.2s ease',
-                  marginLeft: '0.25rem',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(233, 69, 96, 0.2)';
-                  e.currentTarget.style.borderColor = 'rgba(233, 69, 96, 0.5)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(233, 69, 96, 0.1)';
-                  e.currentTarget.style.borderColor = 'rgba(233, 69, 96, 0.25)';
-                }}
-              >
-                <LogOut size={15} />
-                Sign out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link to="/login" style={navLinkStyle('/login')}>
-                <User size={16} />
-                Login
-              </Link>
-              <Link to="/register" style={{
-                background: 'linear-gradient(135deg, #6c5ce7, #5a4bd1)',
-                color: 'white',
-                textDecoration: 'none',
-                padding: '0.5rem 1.2rem',
-                borderRadius: '8px',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                transition: 'all 0.2s ease',
-                border: '1px solid rgba(108, 92, 231, 0.5)',
-              }}>
-                Sign up
-              </Link>
-            </>
-          )}
+          <button className="store-nav__mobile-button" onClick={() => setMobileOpen((current) => !current)} aria-label="Toggle navigation">
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
-
-        {/* Mobile hamburger */}
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          style={{
-            display: 'none',
-            background: 'transparent',
-            border: 'none',
-            color: '#e0e0e0',
-            cursor: 'pointer',
-            padding: '0.5rem',
-          }}
-          className="mobile-menu-btn"
-        >
-          {mobileOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
       </nav>
 
-      {/* Mobile dropdown */}
       {mobileOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 99,
-          background: 'rgba(10, 10, 26, 0.95)',
-          backdropFilter: 'blur(20px)',
-          padding: '5rem 2rem 2rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem',
-          animation: 'fadeIn 0.2s ease-out',
-        }}>
-          <Link to="/" style={{ ...navLinkStyle('/'), fontSize: '1.1rem', padding: '1rem' }}>
-            <Shirt size={20} /> Products
-          </Link>
+        <div className="store-nav__mobile-panel">
+          <Link to="/" className={navLinkClass('/')}>Shop</Link>
           {isAuthenticated ? (
             <>
-              <Link to="/cart" style={{ ...navLinkStyle('/cart'), fontSize: '1.1rem', padding: '1rem' }}>
-                <ShoppingCart size={20} /> Cart
-              </Link>
-              <Link to="/orders" style={{ ...navLinkStyle('/orders'), fontSize: '1.1rem', padding: '1rem' }}>
-                <Package size={20} /> Orders
-              </Link>
-              <div style={{ borderTop: '1px solid #1e1e3a', margin: '0.5rem 0' }} />
-              <div style={{ padding: '1rem', color: '#888', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <User size={18} /> {user?.firstName} ({user?.role})
-              </div>
-              <button onClick={handleLogout} style={{
-                background: 'rgba(233, 69, 96, 0.15)',
-                color: '#e94560',
-                border: '1px solid rgba(233, 69, 96, 0.3)',
-                padding: '1rem',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                fontSize: '1.1rem',
-              }}>
-                <LogOut size={20} /> Sign out
-              </button>
+              <Link to="/orders" className={navLinkClass('/orders')}>Orders</Link>
+              <Link to="/saved" className={navLinkClass('/saved')}>Saved</Link>
+              {user?.role === 'manager' && <Link to="/admin/products" className={navLinkClass('/admin/products')}>Products</Link>}
+              {user?.role === 'manager' && <Link to="/admin/promos" className={navLinkClass('/admin/promos')}>Promos</Link>}
+              <Link to="/profile" className={navLinkClass('/profile')}>Profile</Link>
+              <button className="store-nav__signout" onClick={handleLogout}>Sign out</button>
             </>
           ) : (
             <>
-              <Link to="/login" style={{ ...navLinkStyle('/login'), fontSize: '1.1rem', padding: '1rem' }}>
-                <User size={20} /> Login
-              </Link>
-              <Link to="/register" style={{
-                background: 'linear-gradient(135deg, #6c5ce7, #5a4bd1)',
-                color: 'white',
-                padding: '1rem',
-                borderRadius: '8px',
-                fontSize: '1.1rem',
-                fontWeight: 600,
-                textAlign: 'center',
-                textDecoration: 'none',
-              }}>
-                Sign up
-              </Link>
+              <Link to="/login" className={navLinkClass('/login')}>Sign in</Link>
+              <Link to="/register" className={navLinkClass('/register')}>Create account</Link>
             </>
           )}
         </div>
       )}
 
-      {/* Inline responsive styles */}
-      <style>{`
-        @media (max-width: 768px) {
-          .desktop-nav { display: none !important; }
-          .mobile-menu-btn { display: flex !important; }
-        }
-      `}</style>
+      {(cartOpen || notificationsOpen) && <button className="store-drawer__backdrop" onClick={() => { setCartOpen(false); setNotificationsOpen(false); }} aria-label="Close panel" />}
+
+      {canShop && <aside className={`store-drawer ${cartOpen ? 'store-drawer--open' : ''}`}>
+        <div className="store-drawer__header">
+          <h2>Your bag</h2>
+          <button onClick={() => setCartOpen(false)} aria-label="Close bag"><X size={18} /></button>
+        </div>
+        {!cart || cart.items.length === 0 ? (
+          <p className="store-drawer__empty">Your bag is empty.</p>
+        ) : (
+          <>
+            <div className="store-drawer__items">
+              {cart.items.map((item) => (
+                <article className="store-drawer__item" key={item.id}>
+                  <div className="store-drawer__media">{item.imageUrl ? <img src={item.imageUrl} alt="" /> : <Shirt size={24} />}</div>
+                  <div>
+                    <strong>{item.productName}</strong>
+                    <small>{item.sizeName} / {item.colorName} · Qty {item.quantity}</small>
+                    <b>${item.lineTotal.toFixed(2)}</b>
+                  </div>
+                  <button onClick={() => removeItem(item.id)} aria-label="Remove item"><Trash2 size={15} /></button>
+                </article>
+              ))}
+            </div>
+            <div className="store-drawer__footer">
+              <div><span>Total</span><strong>${cart.totalAmount.toFixed(2)}</strong></div>
+              <button className="store-button" onClick={goToCheckout}>Pay now</button>
+              <Link className="store-button store-button--secondary" to="/cart" onClick={() => setCartOpen(false)}>View bag</Link>
+            </div>
+          </>
+        )}
+      </aside>}
+
+      <aside className={`store-drawer ${notificationsOpen ? 'store-drawer--open' : ''}`}>
+        <div className="store-drawer__header">
+          <h2>Notifications</h2>
+          <button onClick={() => setNotificationsOpen(false)} aria-label="Close notifications"><X size={18} /></button>
+        </div>
+        {notifications.length === 0 ? (
+          <p className="store-drawer__empty">No notifications yet.</p>
+        ) : (
+          <div className="store-drawer__items">
+            {notifications.map((notification) => (
+              <article className="store-drawer__notification" key={notification.id}>
+                <strong>{NOTIFICATION_LABELS[notification.type] ?? notification.type.replaceAll('_', ' ')}</strong>
+                <small>{new Date(notification.createdAt).toLocaleString()}</small>
+                {notification.product && <p>{notification.product.name}</p>}
+              </article>
+            ))}
+          </div>
+        )}
+      </aside>
     </>
   );
 }

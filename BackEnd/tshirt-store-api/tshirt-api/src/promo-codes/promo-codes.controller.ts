@@ -9,12 +9,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { Roles, RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 import { CreatePromoCodeDto } from './dto/create-promo-code.dto';
+import { ListPromoCodesQueryDto } from './dto/list-promo-codes-query.dto';
 import { UpdatePromoCodeDto } from './dto/update-promo-code.dto';
 import { PromoCodesService } from './promo-codes.service';
 
@@ -28,10 +29,8 @@ export class PromoCodesController {
 
   @Get()
   @ApiOperation({ summary: 'List promo codes (manager only)' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  findAll(@Query('page') page = 1, @Query('limit') limit = 20) {
-    return this.promoCodesService.findAll(Number(page), Number(limit));
+  findAll(@Query() query: ListPromoCodesQueryDto) {
+    return this.promoCodesService.findAll(query);
   }
 
   @Post()

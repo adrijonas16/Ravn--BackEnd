@@ -12,12 +12,15 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { CreateSkuDto } from './dto/create-sku.dto';
-import { UpdateSkuDto } from './dto/update-sku.dto';
+import { CreateProductVariantDto } from './dto/create-sku.dto';
+import { UpdateProductVariantDto } from './dto/update-sku.dto';
+import { ListProductsQueryDto } from './dto/list-products-query.dto';
+import { CreateProductImageDto } from './dto/create-product-image.dto';
+import { UpdateProductImageDto } from './dto/update-product-image.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../common/guards/roles.guard';
 
@@ -33,19 +36,20 @@ export class ProductsController {
   // @Get() sin parámetro = GET /products
   @Get()
   @ApiOperation({ summary: 'List products with pagination (public)' })
-  // @ApiQuery documenta los query params en Swagger (ej: /products?page=2&search=azul)
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'categoryId', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String })
-  findAll(
-    // @Query extrae parámetros de la URL (ej: ?page=2). Valores por defecto: page=1, limit=20
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
-    @Query('categoryId') categoryId?: number,
-    @Query('search') search?: string,
-  ) {
-    return this.productsService.findAll({ page, limit, categoryId, search });
+  findAll(@Query() query: ListProductsQueryDto) {
+    return this.productsService.findAll(query);
+  }
+
+  @Get('options/sizes')
+  @ApiOperation({ summary: 'List product sizes (public)' })
+  listSizes() {
+    return this.productsService.listSizes();
+  }
+
+  @Get('options/colors')
+  @ApiOperation({ summary: 'List product colors (public)' })
+  listColors() {
+    return this.productsService.listColors();
   }
 
   // GET /products/:productId — ParseIntPipe convierte el string de la URL a número
@@ -96,39 +100,81 @@ export class ProductsController {
     return this.productsService.remove(productId);
   }
 
-  // ─── SKUs (variantes de producto: talla + color + precio + stock) ───
+  // ─── Product variants (talla + color + precio + stock) ───
 
-  // GET /products/:productId/skus — ruta anidada, público
-  @Get(':productId/skus')
-  @ApiOperation({ summary: 'List SKUs for a product (public)' })
-  findSkus(@Param('productId', ParseIntPipe) productId: number) {
-    return this.productsService.findSkus(productId);
+  // GET /products/:productId/variants — ruta anidada, público
+  @Get(':productId/variants')
+  @ApiOperation({ summary: 'List product variants for a product (public)' })
+  findVariants(@Param('productId', ParseIntPipe) productId: number) {
+    return this.productsService.findVariants(productId);
   }
 
-  // POST /products/:productId/skus — crear variante, solo manager
-  @Post(':productId/skus')
+  // POST /products/:productId/variants — crear variante, solo manager
+  @Post(':productId/variants')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('manager')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a SKU (manager only)' })
-  createSku(
+  @ApiOperation({ summary: 'Create a product variant (manager only)' })
+  createVariant(
     @Param('productId', ParseIntPipe) productId: number,
-    @Body() dto: CreateSkuDto,
+    @Body() dto: CreateProductVariantDto,
   ) {
-    return this.productsService.createSku(productId, dto);
+    return this.productsService.createVariant(productId, dto);
   }
 
-  // PATCH /products/:productId/skus/:skuId — actualizar variante, solo manager
-  @Patch(':productId/skus/:skuId')
+  // PATCH /products/:productId/variants/:productVariantId — actualizar variante, solo manager
+  @Patch(':productId/variants/:productVariantId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('manager')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update a SKU (manager only)' })
-  updateSku(
+  @ApiOperation({ summary: 'Update a product variant (manager only)' })
+  updateVariant(
     @Param('productId', ParseIntPipe) productId: number,
-    @Param('skuId', ParseIntPipe) skuId: number,
-    @Body() dto: UpdateSkuDto,
+    @Param('productVariantId', ParseIntPipe) productVariantId: number,
+    @Body() dto: UpdateProductVariantDto,
   ) {
-    return this.productsService.updateSku(productId, skuId, dto);
+    return this.productsService.updateVariant({
+      productId,
+      productVariantId,
+      dto,
+    });
+  }
+
+  @Post(':productId/images')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('manager')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a product image by URL (manager only)' })
+  addImage(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Body() dto: CreateProductImageDto,
+  ) {
+    return this.productsService.addImage(productId, dto);
+  }
+
+  @Patch(':productId/images/:imageId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('manager')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a product image (manager only)' })
+  updateImage(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Param('imageId', ParseIntPipe) imageId: number,
+    @Body() dto: UpdateProductImageDto,
+  ) {
+    return this.productsService.updateImage({ productId, imageId, dto });
+  }
+
+  @Delete(':productId/images/:imageId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('manager')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a product image (manager only)' })
+  removeImage(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Param('imageId', ParseIntPipe) imageId: number,
+  ) {
+    return this.productsService.removeImage(productId, imageId);
   }
 }

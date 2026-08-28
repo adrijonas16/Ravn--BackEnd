@@ -11,11 +11,12 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
-import { OrderStatus } from '@prisma/client';
+import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -45,33 +46,12 @@ export class OrdersController {
   // GET /orders — lista órdenes con filtros (el service filtra según el rol del usuario)
   @Get()
   @ApiOperation({ summary: 'List orders' })
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
-  @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
-  @ApiQuery({ name: 'fromDate', required: false })
-  @ApiQuery({ name: 'toDate', required: false })
-  @ApiQuery({ name: 'minAmount', required: false })
-  @ApiQuery({ name: 'maxAmount', required: false })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
-    @Query('status') status?: OrderStatus,
-    @Query('fromDate') fromDate?: string,
-    @Query('toDate') toDate?: string,
-    @Query('minAmount') minAmount?: number,
-    @Query('maxAmount') maxAmount?: number,
+    @Query() query: ListOrdersQueryDto,
   ) {
     // Se pasa el objeto user completo para que el service filtre por rol
-    return this.ordersService.findAll(user, {
-      page,
-      limit,
-      status,
-      fromDate,
-      toDate,
-      minAmount,
-      maxAmount,
-    });
+    return this.ordersService.findAll(user, query);
   }
 
   // GET /orders/:orderId — detalle de una orden (el service valida permisos)
@@ -94,12 +74,12 @@ export class OrdersController {
     @Body() dto: UpdateOrderStatusDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.ordersService.updateStatus(
+    return this.ordersService.updateStatus({
       orderId,
-      dto.status,
+      status: dto.status,
       user,
-      dto.reason,
-    );
+      reason: dto.reason,
+    });
   }
 
   // POST /orders/:orderId/cancel — cualquier usuario autenticado puede intentar cancelar
@@ -111,9 +91,12 @@ export class OrdersController {
   cancelOrder(
     @Param('orderId', ParseIntPipe) orderId: number,
     @CurrentUser() user: AuthenticatedUser,
-    // @Body('reason') extrae solo el campo "reason" del body, no todo el objeto
-    @Body('reason') reason?: string,
+    @Body() dto: CancelOrderDto,
   ) {
-    return this.ordersService.cancelOrder(orderId, user, reason);
+    return this.ordersService.cancelOrder({
+      orderId,
+      user,
+      reason: dto.reason,
+    });
   }
 }

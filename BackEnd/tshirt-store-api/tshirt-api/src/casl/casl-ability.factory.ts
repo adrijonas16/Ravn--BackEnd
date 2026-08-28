@@ -20,7 +20,7 @@ export type Actions = 'manage' | 'create' | 'read' | 'update' | 'delete';
 // 'all' significa TODOS los recursos
 export type Subjects =
   | 'Product'
-  | 'ProductSku'
+  | 'ProductVariant'
   | 'Order'
   | 'Cart'
   | 'PromoCode'
@@ -35,17 +35,15 @@ export class CaslAbilityFactory {
   // Crea las reglas de permisos según el rol del usuario autenticado
   // Se llama cada vez que un guard necesita verificar si el usuario tiene permiso
   createForUser(user: AuthenticatedUser): AppAbility {
-    // can(): otorga permiso | cannot(): niega permiso | build(): construye el objeto final
-    const { can, cannot, build } = new AbilityBuilder<AppAbility>(
-      createMongoAbility,
-    );
+    // can(): otorga permiso | build(): construye el objeto final
+    const { can, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
     // Cada rol tiene permisos diferentes — patrón RBAC (Role-Based Access Control)
     switch (user.role) {
       case 'manager':
         // 'manage' = puede hacer TODO (crear, leer, editar, borrar) con productos y SKUs
         can('manage', 'Product');
-        can('manage', 'ProductSku');
+        can('manage', 'ProductVariant');
         can('read', 'Order');
         can('update', 'Order'); // puede cambiar estado de las órdenes
         can('manage', 'PromoCode');

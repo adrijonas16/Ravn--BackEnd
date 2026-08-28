@@ -3,6 +3,8 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import * as express from 'express';
 import { WebhooksService } from './webhooks.service';
 
+type StripeWebhookRequest = express.Request & { rawBody?: Buffer };
+
 @ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
@@ -12,9 +14,12 @@ export class WebhooksController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Handle Stripe webhook events' })
   handleStripeWebhook(
-    @Req() req: express.Request,
+    @Req() req: StripeWebhookRequest,
     @Headers('stripe-signature') signature: string,
   ) {
-    return this.webhooksService.handleWebhook(req.body, signature);
+    return this.webhooksService.handleWebhook(
+      req.rawBody ?? req.body,
+      signature,
+    );
   }
 }

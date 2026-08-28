@@ -18,10 +18,7 @@ describe('LikesService', () => {
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        LikesService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [LikesService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get(LikesService);
@@ -35,7 +32,10 @@ describe('LikesService', () => {
 
     it('should throw ConflictException if already liked', async () => {
       prisma.product.findFirst.mockResolvedValue({ id: 1 });
-      prisma.productLike.findUnique.mockResolvedValue({ userId: 1, productId: 1 });
+      prisma.productLike.findUnique.mockResolvedValue({
+        userId: 1,
+        productId: 1,
+      });
       await expect(service.like(1, 1)).rejects.toThrow(ConflictException);
     });
 
@@ -57,7 +57,10 @@ describe('LikesService', () => {
     });
 
     it('should delete the like successfully', async () => {
-      prisma.productLike.findUnique.mockResolvedValue({ userId: 1, productId: 1 });
+      prisma.productLike.findUnique.mockResolvedValue({
+        userId: 1,
+        productId: 1,
+      });
       prisma.productLike.delete.mockResolvedValue({});
       await service.unlike(1, 1);
       expect(prisma.productLike.delete).toHaveBeenCalled();

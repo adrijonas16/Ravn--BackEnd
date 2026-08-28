@@ -1,8 +1,29 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../api/auth';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { Mail, Lock, Eye, EyeOff, LogIn, Shirt } from 'lucide-react';
+
+const inputWrapperStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.75rem',
+  background: '#f7f4ef',
+  borderRadius: '12px',
+  border: '1px solid #ded7cc',
+  padding: '0 1rem',
+  transition: 'border-color 0.2s ease',
+};
+
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '0.85rem 0',
+  border: 'none',
+  background: 'transparent',
+  color: '#111111',
+  outline: 'none',
+  fontSize: '0.95rem',
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,34 +40,13 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { data } = await authApi.signIn({ email, password });
-      login(data.accessToken, data.user);
+      login(data.accessToken, data.refreshToken, data.user);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const inputWrapperStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    background: '#0a0a1a',
-    borderRadius: '12px',
-    border: '1px solid #1e1e3a',
-    padding: '0 1rem',
-    transition: 'border-color 0.2s ease',
-  };
-
-  const inputStyle: React.CSSProperties = {
-    flex: 1,
-    padding: '0.85rem 0',
-    border: 'none',
-    background: 'transparent',
-    color: '#e0e0e0',
-    outline: 'none',
-    fontSize: '0.95rem',
   };
 
   return (
@@ -87,9 +87,9 @@ export default function LoginPage() {
       }}>
         {/* Card with gradient border effect */}
         <div style={{
-          background: '#12122a',
+          background: '#ffffff',
           borderRadius: '24px',
-          border: '1px solid #1e1e3a',
+          border: '1px solid #ded7cc',
           padding: '2.5rem',
           position: 'relative',
           overflow: 'hidden',
@@ -102,7 +102,7 @@ export default function LoginPage() {
             left: 0,
             right: 0,
             height: '2px',
-            background: 'linear-gradient(90deg, #6c5ce7, #00cec9, #6c5ce7)',
+            background: 'linear-gradient(90deg, #2457ff, #2457ff, #2457ff)',
           }} />
 
           {/* Logo */}
@@ -111,7 +111,7 @@ export default function LoginPage() {
               width: 60,
               height: 60,
               borderRadius: '16px',
-              background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
+              background: 'linear-gradient(135deg, #2457ff, #2457ff)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -124,11 +124,11 @@ export default function LoginPage() {
               margin: '0 0 0.25rem',
               fontSize: '1.5rem',
               fontWeight: 700,
-              color: '#ffffff',
+              color: '#111111',
             }}>
               Welcome back
             </h1>
-            <p style={{ margin: 0, color: '#888', fontSize: '0.9rem' }}>
+            <p style={{ margin: 0, color: '#666666', fontSize: '0.9rem' }}>
               Sign in to your account
             </p>
           </div>
@@ -156,9 +156,9 @@ export default function LoginPage() {
           }}>
             {/* Email */}
             <div>
-              <label style={{
+              <label htmlFor="login-email" style={{
                 display: 'block',
-                color: '#888',
+                color: '#666666',
                 fontSize: '0.8rem',
                 fontWeight: 500,
                 marginBottom: '0.4rem',
@@ -168,8 +168,9 @@ export default function LoginPage() {
                 Email
               </label>
               <div style={inputWrapperStyle}>
-                <Mail size={18} color="#666" />
+                <Mail size={18} color="#777777" />
                 <input
+                  id="login-email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
@@ -182,9 +183,9 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label style={{
+              <label htmlFor="login-password" style={{
                 display: 'block',
-                color: '#888',
+                color: '#666666',
                 fontSize: '0.8rem',
                 fontWeight: 500,
                 marginBottom: '0.4rem',
@@ -194,8 +195,9 @@ export default function LoginPage() {
                 Password
               </label>
               <div style={inputWrapperStyle}>
-                <Lock size={18} color="#666" />
+                <Lock size={18} color="#777777" />
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={password}
@@ -205,11 +207,12 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword(!showPassword)}
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#666',
+                    color: '#777777',
                     cursor: 'pointer',
                     padding: '0.25rem',
                     display: 'flex',
@@ -218,6 +221,16 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.55rem' }}>
+                <Link to="/forgot-password" style={{
+                  color: '#2457ff',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                }}>
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             <button
@@ -225,7 +238,7 @@ export default function LoginPage() {
               disabled={loading}
               style={{
                 padding: '0.9rem',
-                background: 'linear-gradient(135deg, #6c5ce7, #5a4bd1)',
+                background: 'linear-gradient(135deg, #2457ff, #111111)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '12px',
@@ -236,7 +249,7 @@ export default function LoginPage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
-                transition: 'all 0.2s ease',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 marginTop: '0.5rem',
                 boxShadow: '0 4px 15px rgba(108, 92, 231, 0.3)',
               }}
@@ -274,19 +287,19 @@ export default function LoginPage() {
 
           <p style={{
             marginTop: '1.5rem',
-            color: '#888',
+            color: '#666666',
             textAlign: 'center',
             fontSize: '0.9rem',
           }}>
             Don't have an account?{' '}
             <Link to="/register" style={{
-              color: '#6c5ce7',
+              color: '#2457ff',
               fontWeight: 600,
               textDecoration: 'none',
               transition: 'color 0.2s',
             }}
-              onMouseEnter={e => e.currentTarget.style.color = '#00cec9'}
-              onMouseLeave={e => e.currentTarget.style.color = '#6c5ce7'}
+              onMouseEnter={e => e.currentTarget.style.color = '#2457ff'}
+              onMouseLeave={e => e.currentTarget.style.color = '#2457ff'}
             >
               Sign up
             </Link>

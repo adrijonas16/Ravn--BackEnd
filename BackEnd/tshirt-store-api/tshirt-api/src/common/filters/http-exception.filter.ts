@@ -41,7 +41,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         message = (res as any).message ?? exception.message;
         error = (res as any).error ?? 'Error';
       } else {
-        message = res as string;
+        message = res;
       }
     }
 

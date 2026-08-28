@@ -1,17 +1,12 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useCallback, useMemo, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { authApi } from '../api/auth';
-
-interface AuthContextType {
-  user: User | null;
-  token: string | null;
-  login: (token: string, user: User) => void;
-  logout: () => void;
-  isAuthenticated: boolean;
-  isAuthLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext } from './authContextValue';
+import {
+  AUTH_REFRESH_TOKEN_KEY,
+  AUTH_TOKEN_KEY,
+  AUTH_USER_KEY,
+} from '../utils/authStorage';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -23,7 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
 
     async function validateSavedSession() {
-      const savedToken = localStorage.getItem('token');
+      const savedToken = localStorage.getItem(AUTH_TOKEN_KEY);
 
       if (!savedToken) {
         if (active) setIsAuthLoading(false);
@@ -34,11 +29,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const { data } = await authApi.me();
-        localStorage.setItem('user', JSON.stringify(data.user));
-        if (active) setUser(data.user);
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data.user));
+        if (active) {
+          setToken(localStorage.getItem(AUTH_TOKEN_KEY));
+          setUser(data.user);
+        }
       } catch {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(AUTH_USER_KEY);
         if (active) {
           setToken(null);
           setUser(null);
@@ -55,31 +53,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = (newToken: string, newUser: User) => {
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
+  const login = useCallback((newToken: string, newUser: User) => {
+    localStorage.setItem(AUTH_TOKEN_KEY, newToken);
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
-  };
+  }, []);
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const loginWithRefresh = useCallback(
+    (newToken: string, newRefreshToken: string, newUser: User) => {
+      localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, newRefreshToken);
+      login(newToken, newUser);
+    },
+    [login],
+  );
+
+  const logout = useCallback(() => {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
     setToken(null);
     setUser(null);
-  };
+  }, []);
+
+  const updateUser = useCallback((updatedUser: User) => {
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  }, []);
+
+  const value = useMemo(
+    () => ({ user, token, login: loginWithRefresh, logout, updateUser, isAuthenticated: !!token, isAuthLoading }),
+    [isAuthLoading, loginWithRefresh, logout, token, updateUser, user],
+  );
 
   return (
     <AuthContext.Provider
-      value={{ user, token, login, logout, isAuthenticated: !!token, isAuthLoading }}
+      value={value}
     >
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
 }

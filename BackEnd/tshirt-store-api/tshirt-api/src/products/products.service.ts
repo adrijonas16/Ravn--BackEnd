@@ -6,8 +6,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { CreateSkuDto } from './dto/create-sku.dto';
-import { UpdateSkuDto } from './dto/update-sku.dto';
+import { CreateProductVariantDto } from './dto/create-sku.dto';
+import { ListProductsQueryDto } from './dto/list-products-query.dto';
+import { UpdateProductVariantCommandDto } from './dto/update-product-variant-command.dto';
+import { CreateProductImageDto } from './dto/create-product-image.dto';
+import { UpdateProductImageCommandDto } from './dto/update-product-image-command.dto';
 
 // @Injectable() marca esta clase para que NestJS pueda inyectarla en otros archivos
 @Injectable()
@@ -33,21 +36,22 @@ export class ProductsService {
         description: dto.description,
         categoryId: dto.categoryId,
       },
-      include: { category: true, images: true, skus: { include: { size: true, color: true } } },
+      include: {
+        category: true,
+        images: true,
+        variants: { include: { size: true, color: true } },
+      },
     });
   }
 
   // Listado con paginación y filtros opcionales (categoría, búsqueda por nombre)
-  async findAll(params: {
-    page: number;
-    limit: number;
-    categoryId?: number;
-    search?: string;
-  }) {
+  async findAll(params: ListProductsQueryDto) {
     // Forzamos a número porque los query params llegan como string
     const page = Number(params.page) || 1;
     const limit = Number(params.limit) || 20;
-    const categoryId = params.categoryId ? Number(params.categoryId) : undefined;
+    const categoryId = params.categoryId
+      ? Number(params.categoryId)
+      : undefined;
     const search = params.search;
     // skip calcula cuántos registros saltar para la página actual
     const skip = (page - 1) * limit;
@@ -70,7 +74,11 @@ export class ProductsService {
         orderBy: { createdAt: 'desc' },
         include: {
           category: true,
-          images: { where: { isPrimary: true }, take: 1 },
+          images: { orderBy: { sortOrder: 'asc' }, take: 2 },
+          variants: {
+            where: { isActive: true },
+            include: { size: true, color: true },
+          },
           // _count cuenta las relaciones sin traer todos los datos
           _count: { select: { likes: true } },
         },
@@ -87,7 +95,12 @@ export class ProductsService {
         description: p.description,
         status: p.status,
         category: p.category,
-        primaryImage: p.images[0]?.publicUrl ?? null,
+        primaryImage:
+          p.images.find((image) => image.isPrimary)?.publicUrl ??
+          p.images[0]?.publicUrl ??
+          null,
+        images: p.images,
+        variants: p.variants,
         likesCount: p._count.likes,
         createdAt: p.createdAt,
       })),
@@ -107,7 +120,7 @@ export class ProductsService {
       include: {
         category: true,
         images: { orderBy: { sortOrder: 'asc' } },
-        skus: { include: { size: true, color: true } },
+        variants: { include: { size: true, color: true } },
         _count: { select: { likes: true } },
       },
     });
@@ -119,6 +132,12 @@ export class ProductsService {
   async update(id: number, dto: UpdateProductDto) {
     // Primero verifica que el producto existe (lanza 404 si no)
     await this.findOne(id);
+    if (dto.categoryId) {
+      const category = await this.prisma.category.findUnique({
+        where: { id: dto.categoryId },
+      });
+      if (!category) throw new NotFoundException('Category not found');
+    }
 
     const data: any = { ...dto };
     // Si cambió el nombre, regenera el slug para mantener URLs consistentes
@@ -130,7 +149,7 @@ export class ProductsService {
       include: {
         category: true,
         images: { orderBy: { sortOrder: 'asc' } },
-        skus: { include: { size: true, color: true } },
+        variants: { include: { size: true, color: true } },
       },
     });
   }
@@ -144,14 +163,14 @@ export class ProductsService {
     });
   }
 
-  // ─── SKUs ──────────────────────────────────────────────────────
+  // ─── Product variants ──────────────────────────────────────────
 
   // SKU = variante de producto (ej: Camiseta talla M color Rojo, con su precio y stock)
-  async createSku(productId: number, dto: CreateSkuDto) {
+  async createVariant(productId: number, dto: CreateProductVariantDto) {
     await this.findOne(productId);
 
     // Índice compuesto: verifica que no exista ya una variante con la misma talla+color
-    const existing = await this.prisma.productSku.findUnique({
+    const existing = await this.prisma.productVariant.findUnique({
       where: {
         productId_sizeId_colorId: {
           productId,
@@ -162,34 +181,106 @@ export class ProductsService {
     });
     // ConflictException = HTTP 409 (conflicto con datos existentes)
     if (existing) {
-      throw new ConflictException('SKU with this size and color already exists');
+      throw new ConflictException(
+        'Product variant with this size and color already exists',
+      );
     }
 
-    return this.prisma.productSku.create({
+    return this.prisma.productVariant.create({
       data: { ...dto, productId },
       include: { size: true, color: true },
     });
   }
 
-  async findSkus(productId: number) {
+  async findVariants(productId: number) {
     await this.findOne(productId);
-    return this.prisma.productSku.findMany({
+    return this.prisma.productVariant.findMany({
       where: { productId },
       include: { size: true, color: true },
     });
   }
 
-  async updateSku(productId: number, skuId: number, dto: UpdateSkuDto) {
-    const sku = await this.prisma.productSku.findFirst({
-      where: { id: skuId, productId },
+  async listSizes() {
+    return this.prisma.size.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    if (!sku) throw new NotFoundException('SKU not found');
+  }
 
-    return this.prisma.productSku.update({
-      where: { id: skuId },
+  async listColors() {
+    return this.prisma.color.findMany({
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async updateVariant(command: UpdateProductVariantCommandDto) {
+    const { productId, productVariantId, dto } = command;
+    const productVariant = await this.prisma.productVariant.findFirst({
+      where: { id: productVariantId, productId },
+    });
+    if (!productVariant)
+      throw new NotFoundException('Product variant not found');
+
+    return this.prisma.productVariant.update({
+      where: { id: productVariantId },
       data: dto,
       include: { size: true, color: true },
     });
+  }
+
+  async addImage(productId: number, dto: CreateProductImageDto) {
+    await this.findOne(productId);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isPrimary) {
+        await tx.productImage.updateMany({
+          where: { productId, isPrimary: true },
+          data: { isPrimary: false },
+        });
+      }
+
+      return tx.productImage.create({
+        data: {
+          productId,
+          publicUrl: dto.publicUrl,
+          storageKey: dto.storageKey ?? `external/${productId}/${Date.now()}`,
+          altText: dto.altText,
+          sortOrder: dto.sortOrder ?? 0,
+          isPrimary: dto.isPrimary ?? false,
+        },
+      });
+    });
+  }
+
+  async updateImage(command: UpdateProductImageCommandDto) {
+    const { productId, imageId, dto } = command;
+    await this.ensureProductImage(productId, imageId);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (dto.isPrimary) {
+        await tx.productImage.updateMany({
+          where: { productId, isPrimary: true, NOT: { id: imageId } },
+          data: { isPrimary: false },
+        });
+      }
+
+      return tx.productImage.update({
+        where: { id: imageId },
+        data: dto,
+      });
+    });
+  }
+
+  async removeImage(productId: number, imageId: number) {
+    await this.ensureProductImage(productId, imageId);
+    await this.prisma.productImage.delete({ where: { id: imageId } });
+  }
+
+  private async ensureProductImage(productId: number, imageId: number) {
+    const image = await this.prisma.productImage.findFirst({
+      where: { id: imageId, productId },
+    });
+    if (!image) throw new NotFoundException('Product image not found');
+    return image;
   }
 
   // Genera un slug único: "Camiseta Azul" → "camiseta-azul-k5f3x2"

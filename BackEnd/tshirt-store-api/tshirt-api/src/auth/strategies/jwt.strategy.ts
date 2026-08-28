@@ -7,7 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 // Interfaz que define la estructura del contenido (payload) dentro del token JWT
 export interface JwtPayload {
-  sub: number;    // "subject" = id del usuario
+  sub: number; // "subject" = id del usuario
   email: string;
   role: string;
 }

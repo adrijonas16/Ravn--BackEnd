@@ -1,80 +1,502 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { productsApi } from '../api/products';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Check, ChevronDown, ChevronRight, ChevronUp, Heart, Minus, Package, Plus, Shirt, ShoppingBag } from 'lucide-react';
 import { cartApi } from '../api/cart';
-import { ProductDetail, Sku } from '../types';
-import { useAuth } from '../context/AuthContext';
-import { ShoppingCart, Plus, Minus, ChevronRight, Heart, Shirt, Package, Check } from 'lucide-react';
+import { productsApi } from '../api/products';
+import { useAuth } from '../context/useAuth';
+import { ProductDetail, ProductVariant } from '../types';
 
-const CATEGORY_GRADIENTS: Record<string, string> = {
-  graphic: 'linear-gradient(135deg, #6c5ce7, #a855f7, #7c3aed)',
-  basic: 'linear-gradient(135deg, #2d2d4a, #3d3d5c, #4d4d6c)',
-  premium: 'linear-gradient(135deg, #f59e0b, #d97706, #b45309)',
-  vintage: 'linear-gradient(135deg, #d97706, #92400e, #78350f)',
-  sport: 'linear-gradient(135deg, #00b894, #00cec9, #00b894)',
+const CATEGORY_COLORS: Record<string, string> = {
+  graphic: '#2457ff',
+  basic: '#111111',
+  premium: '#c5a253',
+  vintage: '#e94f37',
+  sport: '#00a676',
 };
 
-function getCategoryGradient(categoryName?: string): string {
-  if (!categoryName) return CATEGORY_GRADIENTS.basic;
+function getAccent(categoryName?: string): string {
+  if (!categoryName) return '#2457ff';
   const key = categoryName.toLowerCase();
-  for (const [k, v] of Object.entries(CATEGORY_GRADIENTS)) {
-    if (key.includes(k)) return v;
+  for (const [name, color] of Object.entries(CATEGORY_COLORS)) {
+    if (key.includes(name)) return color;
   }
-  return 'linear-gradient(135deg, #6c5ce7, #00cec9)';
+  return '#2457ff';
+}
+
+function uniqueActiveSizes(variants: ProductVariant[] = []) {
+  const result = new Map<number, ProductVariant['size']>();
+  for (const variant of variants) {
+    if (variant.isActive) result.set(variant.size.id, variant.size);
+  }
+  return [...result.values()];
+}
+
+function uniqueActiveColors(variants: ProductVariant[] = []) {
+  const result = new Map<number, ProductVariant['color']>();
+  for (const variant of variants) {
+    if (variant.isActive) result.set(variant.color.id, variant.color);
+  }
+  return [...result.values()];
+}
+
+function InfoSection({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div style={{ borderTop: '1px solid #e4e4e4' }}>
+      <button
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          width: '100%',
+          padding: '1rem 0',
+          border: 'none',
+          background: 'transparent',
+          color: '#111',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          cursor: 'pointer',
+          fontSize: '0.82rem',
+          fontWeight: 800,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {title}
+        {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      </button>
+      {open && (
+        <div style={{ color: '#555', fontSize: '0.92rem', lineHeight: 1.65, paddingBottom: '1.1rem' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProductGallery({
+  product,
+  accent,
+}: {
+  product: ProductDetail;
+  accent: string;
+}) {
+  const heroImages = product.images.length > 0
+    ? product.images.slice(0, 4).map((image) => ({ key: `image-${image.id}`, image }))
+    : [0, 1, 2, 3].map((slot) => ({ key: `placeholder-${slot}`, image: null }));
+
+  return (
+    <section className="ln-gallery" style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '0.85rem',
+    }}>
+      {heroImages.map(({ key, image }, index) => (
+        <div key={key} style={{
+          minHeight: index === 0 ? 560 : 370,
+          gridColumn: index === 0 ? 'span 2' : 'span 1',
+          background: index === 0 ? '#fff' : '#ece7df',
+          border: '1px solid #e2ded6',
+          display: 'grid',
+          placeItems: 'center',
+          overflow: 'hidden',
+          position: 'relative',
+        }}>
+          {image ? (
+            <img src={image.publicUrl} alt={image.altText ?? product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <>
+              <div style={{
+                position: 'absolute',
+                inset: '10%',
+                border: `2px solid ${accent}`,
+                opacity: 0.12,
+              }} />
+              <Shirt size={index === 0 ? 170 : 110} strokeWidth={1.1} color={accent} />
+            </>
+          )}
+          {index === 0 && (
+            <span style={{
+              position: 'absolute',
+              top: 16,
+              left: 16,
+              padding: '0.35rem 0.55rem',
+              background: accent,
+              color: '#fff',
+              fontSize: '0.72rem',
+              fontWeight: 900,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+            }}>
+              In stock now
+            </span>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function ProductPurchasePanel({
+  accent,
+  adding,
+  colors,
+  message,
+  product,
+  quantity,
+  selectedPrice,
+  selectedSku,
+  sizes,
+  onAddToCart,
+  onToggleLike,
+  onQuantityChange,
+  onSkuChange,
+  canBuy,
+}: {
+  accent: string;
+  adding: boolean;
+  colors: NonNullable<ProductVariant['color']>[];
+  message: string;
+  product: ProductDetail;
+  quantity: number;
+  selectedPrice: number;
+  selectedSku: ProductVariant | null;
+  sizes: NonNullable<ProductVariant['size']>[];
+  onAddToCart: () => void;
+  onToggleLike: () => void;
+  onQuantityChange: (quantity: number) => void;
+  onSkuChange: (variant: ProductVariant) => void;
+  canBuy: boolean;
+}) {
+  return (
+    <aside style={{
+      position: 'sticky',
+      top: '5.5rem',
+      background: '#f7f4ef',
+      paddingBottom: '1rem',
+    }}>
+      <p style={{
+        color: accent,
+        fontWeight: 900,
+        fontSize: '0.78rem',
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+        marginBottom: '0.5rem',
+      }}>
+        {product.category?.name ?? 'ThreadVault'}
+      </p>
+
+      <h1 style={{
+        margin: '0 0 0.85rem',
+        color: '#111',
+        fontSize: 'clamp(2rem, 4vw, 3.35rem)',
+        lineHeight: 0.95,
+        fontWeight: 950,
+        letterSpacing: 0,
+        textTransform: 'uppercase',
+      }}>
+        {product.name}
+      </h1>
+
+      <p style={{ margin: '0 0 1rem', color: '#111', fontSize: '1.05rem', fontWeight: 800 }}>
+        ${selectedPrice.toFixed(2)} USD
+      </p>
+
+      <p style={{ color: '#4a4a4a', lineHeight: 1.65, fontSize: '0.98rem', marginBottom: '1.4rem' }}>
+        {product.description}
+      </p>
+
+      <div style={{ marginBottom: '1.15rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+          <div style={{ color: '#111', fontSize: '0.82rem', fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            Select size
+          </div>
+          <span style={{ color: '#777', fontSize: '0.78rem', fontWeight: 700 }}>Size guide</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.55rem' }}>
+          {sizes.map((size) => {
+            const variant = product.variants.find((item) => item.size.id === size.id && item.color.id === (selectedSku?.color.id ?? colors[0]?.id) && item.isActive);
+            const isSelected = selectedSku?.size.id === size.id;
+            const disabled = !variant || variant.stock <= 0;
+            return (
+              <button
+                type="button"
+                key={size.id}
+                disabled={disabled}
+                onClick={() => variant && onSkuChange(variant)}
+                aria-label={`Select size ${size.name}`}
+                style={{
+                  minHeight: 48,
+                  border: isSelected ? `2px solid ${accent}` : '1px solid #222',
+                  background: isSelected ? '#111' : '#fff',
+                  color: isSelected ? '#fff' : '#111',
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 900,
+                  opacity: disabled ? 0.35 : 1,
+                }}
+              >
+                {size.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '1.25rem' }}>
+        <div style={{ display: 'block', color: '#111', fontSize: '0.82rem', fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.65rem' }}>
+          Color
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+          {colors.map((color) => {
+            const variant = product.variants.find((item) => item.color.id === color.id && item.size.id === (selectedSku?.size.id ?? sizes[0]?.id) && item.isActive);
+            const isSelected = selectedSku?.color.id === color.id;
+            return (
+              <button
+                type="button"
+                key={color.id}
+                onClick={() => variant && onSkuChange(variant)}
+                aria-label={`Select color ${color.name}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  minHeight: 42,
+                  padding: '0 0.75rem',
+                  border: isSelected ? `2px solid ${accent}` : '1px solid #222',
+                  background: '#fff',
+                  color: '#111',
+                  cursor: variant ? 'pointer' : 'not-allowed',
+                  fontWeight: 800,
+                  opacity: variant ? 1 : 0.35,
+                }}
+              >
+                <span style={{
+                  width: 17,
+                  height: 17,
+                  borderRadius: '50%',
+                  background: color.hexCode ?? '#ddd',
+                  border: '1px solid #bbb',
+                }} />
+                {color.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr 36px', border: '1px solid #111', background: '#fff' }}>
+          <button type="button" onClick={() => onQuantityChange(Math.max(1, quantity - 1))} aria-label="Decrease quantity" style={{ border: 'none', background: 'transparent', color: '#111', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+            <Minus size={15} />
+          </button>
+          <span style={{ display: 'grid', placeItems: 'center', color: '#111', fontWeight: 900 }}>{quantity}</span>
+          <button type="button" onClick={() => onQuantityChange(quantity + 1)} aria-label="Increase quantity" style={{ border: 'none', background: 'transparent', color: '#111', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+            <Plus size={15} />
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={onAddToCart}
+          disabled={!canBuy || adding || !selectedSku || selectedSku.stock === 0}
+          style={{
+            minHeight: 54,
+            border: 'none',
+            background: message === 'success' ? '#00a676' : '#111',
+            color: '#fff',
+            cursor: !canBuy || adding || !selectedSku || selectedSku.stock === 0 ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            fontSize: '0.9rem',
+            fontWeight: 950,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {!canBuy ? 'Client account required' : adding ? 'Adding...' : message === 'success' ? <><Check size={18} /> Added</> : <><ShoppingBag size={18} /> Add to bag</>}
+        </button>
+      </div>
+
+      {selectedSku && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '0.78rem', fontWeight: 700, marginBottom: '1rem' }}>
+          <span>{selectedSku.stock > 0 ? `${selectedSku.stock} in stock` : 'Out of stock'}</span>
+          <span>SKU: {selectedSku.sku}</span>
+        </div>
+      )}
+
+      {message && message !== 'success' && (
+        <p style={{ color: '#b42318', background: '#fff1f0', border: '1px solid #ffd3d0', padding: '0.75rem', marginBottom: '1rem', fontSize: '0.88rem' }}>
+          {message}
+        </p>
+      )}
+
+      {product.likesCount !== undefined && product.likesCount > 0 && (
+        <p style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#555', fontSize: '0.85rem', marginBottom: '1rem' }}>
+          <Heart size={15} fill={accent} color={accent} />
+          {product.likesCount} people like this product
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={onToggleLike}
+        style={{
+          width: '100%',
+          minHeight: 46,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem',
+          border: `1px solid ${accent}`,
+          background: product.isLiked ? `${accent}14` : '#fff',
+          color: product.isLiked ? accent : '#111',
+          cursor: 'pointer',
+          fontWeight: 950,
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
+          marginBottom: '1rem',
+        }}
+      >
+        <Heart size={17} fill={product.isLiked ? accent : 'transparent'} />
+        {product.isLiked ? 'Saved' : 'Save product'}
+      </button>
+
+      <InfoSection title="Product details" defaultOpen>
+        <ul style={{ paddingLeft: '1.1rem' }}>
+          <li>Regular fit</li>
+          <li>Soft cotton tee construction</li>
+          <li>Screen-print inspired product artwork</li>
+          <li>Prepared through the ThreadVault catalog API</li>
+        </ul>
+      </InfoSection>
+
+      <InfoSection title="Size guide">
+        <div style={{ display: 'grid', gridTemplateColumns: `80px repeat(${Math.max(sizes.length, 1)}, 1fr)`, borderTop: '1px solid #ddd', borderLeft: '1px solid #ddd' }}>
+          <strong style={{ padding: '0.55rem', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>Size</strong>
+          {sizes.map((size) => <strong key={size.id} style={{ padding: '0.55rem', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>{size.name}</strong>)}
+          <span style={{ padding: '0.55rem', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>Stock</span>
+          {sizes.map((size) => {
+            const total = product.variants.filter((variant) => variant.size.id === size.id).reduce((sum, variant) => sum + variant.stock, 0);
+            return <span key={size.id} style={{ padding: '0.55rem', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>{total}</span>;
+          })}
+        </div>
+      </InfoSection>
+
+      <InfoSection title="Care guide">
+        Wash with similar colours. Wash inside out. Machine wash cold. Do not tumble dry.
+      </InfoSection>
+
+      <InfoSection title="Shipping">
+        Orders move from paid to processing, then shipped and delivered. Taxes and shipping are calculated during checkout.
+      </InfoSection>
+    </aside>
+  );
 }
 
 export default function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [selectedSku, setSelectedSku] = useState<Sku | null>(null);
+  const [selectedSku, setSelectedSku] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState('');
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     if (!productId) return;
-    productsApi.get(Number(productId)).then(r => {
-      setProduct(r.data);
-      const activeSku = r.data.skus.find(s => s.isActive && s.stock > 0);
-      if (activeSku) setSelectedSku(activeSku);
-    }).catch(() => navigate('/'))
+    productsApi
+      .get(Number(productId))
+      .then((response) => {
+        setProduct(response.data);
+        const requestedVariantId = Number(searchParams.get('variant'));
+        const requestedSku = Number.isFinite(requestedVariantId)
+          ? response.data.variants.find((variant) => variant.id === requestedVariantId && variant.isActive && variant.stock > 0)
+          : undefined;
+        const activeSku = requestedSku ?? response.data.variants.find((variant) => variant.isActive && variant.stock > 0);
+        if (activeSku) setSelectedSku(activeSku);
+      })
+      .catch(() => navigate('/'))
       .finally(() => setLoading(false));
-  }, [productId]);
+  }, [navigate, productId, searchParams]);
+
+  const sizes = useMemo(() => uniqueActiveSizes(product?.variants), [product]);
+  const colors = useMemo(() => uniqueActiveColors(product?.variants), [product]);
 
   const handleAddToCart = async () => {
-    if (!isAuthenticated) { navigate('/login'); return; }
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (user?.role !== 'client') {
+      setMessage('Use a client account to add products to the bag.');
+      return;
+    }
     if (!selectedSku) return;
+
     setAdding(true);
     setMessage('');
     try {
       await cartApi.addItem(selectedSku.id, quantity);
+      window.dispatchEvent(new Event('cart:updated'));
       setMessage('success');
       setTimeout(() => setMessage(''), 3000);
-    } catch (err: any) {
-      setMessage(err.response?.data?.message || 'Error adding to cart');
+    } catch (error: any) {
+      setMessage(error.response?.data?.message || 'Error adding to cart');
+    } finally {
+      setAdding(false);
     }
-    setAdding(false);
+  };
+
+  const handleToggleLike = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!product) return;
+
+    try {
+      if (product.isLiked) {
+        await productsApi.unlike(product.id);
+        setProduct({
+          ...product,
+          isLiked: false,
+          likesCount: Math.max(0, (product.likesCount ?? 1) - 1),
+        });
+      } else {
+        await productsApi.like(product.id);
+        setProduct({
+          ...product,
+          isLiked: true,
+          likesCount: (product.likesCount ?? 0) + 1,
+        });
+      }
+    } catch (error: any) {
+      if (!product.isLiked && error.response?.status === 409) {
+        setProduct({ ...product, isLiked: true });
+        return;
+      }
+      setMessage('Could not update saved products.');
+    }
   };
 
   if (loading) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '60vh',
-      }}>
-        <div style={{
-          width: 40,
-          height: 40,
-          border: '3px solid #1e1e3a',
-          borderTopColor: '#6c5ce7',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite',
-        }} />
+      <div style={{ minHeight: '70vh', display: 'grid', placeItems: 'center' }}>
+        <div style={{ width: 40, height: 40, border: '3px solid #1e1e3a', borderTopColor: '#2457ff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
       </div>
     );
   }
@@ -88,473 +510,76 @@ export default function ProductDetailPage() {
     );
   }
 
-  const sizes = [...new Map(product.skus.filter(s => s.isActive).map(s => [s.size.id, s.size])).values()];
-  const colors = [...new Map(product.skus.filter(s => s.isActive).map(s => [s.color.id, s.color])).values()];
-
-  const stockPercent = selectedSku ? Math.min(100, (selectedSku.stock / 20) * 100) : 0;
-  const stockColor = selectedSku
-    ? selectedSku.stock === 0 ? '#e94560'
-    : selectedSku.stock <= 3 ? '#f59e0b'
-    : '#00b894'
-    : '#888';
+  const accent = getAccent(product.category?.name);
+  const selectedPrice = selectedSku ? Number(selectedSku.price) : Number(product.variants[0]?.price ?? 0);
 
   return (
-    <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
-      {/* Breadcrumb */}
+    <main style={{ background: '#f7f4ef', color: '#111', minHeight: '100vh', animation: 'fadeIn 0.35s ease-out' }}>
       <div style={{
-        maxWidth: 1100,
+        maxWidth: 1440,
         margin: '0 auto',
-        padding: '1.5rem 2rem 0',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        fontSize: '0.85rem',
-        color: '#888',
+        padding: '1rem clamp(1rem, 3vw, 2.5rem) 4rem',
       }}>
-        <Link to="/" style={{ color: '#888', textDecoration: 'none', transition: 'color 0.2s' }}
-          onMouseEnter={e => e.currentTarget.style.color = '#00cec9'}
-          onMouseLeave={e => e.currentTarget.style.color = '#888'}>
-          Products
-        </Link>
-        <ChevronRight size={14} />
-        {product.category?.name && (
-          <>
-            <span style={{ color: '#888' }}>{product.category.name}</span>
-            <ChevronRight size={14} />
-          </>
-        )}
-        <span style={{ color: '#e0e0e0' }}>{product.name}</span>
-      </div>
-
-      {/* Product Layout */}
-      <div style={{
-        maxWidth: 1100,
-        margin: '1.5rem auto',
-        padding: '0 2rem 3rem',
-        display: 'flex',
-        gap: '3rem',
-        flexWrap: 'wrap',
-      }}>
-        {/* Image / Gradient Hero */}
-        <div style={{
-          flex: '1 1 400px',
-          borderRadius: '20px',
-          overflow: 'hidden',
-          position: 'relative',
+        <nav style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.45rem',
+          padding: '0.35rem 0 1rem',
+          color: '#6a6a6a',
+          fontSize: '0.78rem',
+          fontWeight: 700,
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
         }}>
-          <div style={{
-            height: 450,
-            background: getCategoryGradient(product.category?.name),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            borderRadius: '20px',
-            overflow: 'hidden',
-          }}>
-            {product.images.length > 0 ? (
-              <img
-                src={product.images[0].publicUrl}
-                alt={product.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-            ) : (
-              <>
-                <div style={{
-                  position: 'absolute',
-                  inset: 0,
-                  opacity: 0.1,
-                  backgroundImage: `radial-gradient(circle at 30% 40%, rgba(255,255,255,0.4) 0%, transparent 50%),
-                    radial-gradient(circle at 70% 60%, rgba(255,255,255,0.2) 0%, transparent 50%)`,
-                }} />
-                <Shirt size={120} strokeWidth={1} color="rgba(255,255,255,0.25)" />
-              </>
-            )}
+          <Link to="/" style={{ color: '#111' }}>Shop</Link>
+          <ChevronRight size={14} />
+          <span>{product.category?.name ?? 'Tees'}</span>
+          <ChevronRight size={14} />
+          <span style={{ color: accent }}>{product.name}</span>
+        </nav>
 
-            {/* Likes badge */}
-            {product._count && product._count.likes > 0 && (
-              <div style={{
-                position: 'absolute',
-                bottom: '1rem',
-                right: '1rem',
-                padding: '0.4rem 0.8rem',
-                background: 'rgba(0, 0, 0, 0.5)',
-                backdropFilter: 'blur(10px)',
-                borderRadius: '10px',
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                fontSize: '0.9rem',
-              }}>
-                <Heart size={16} fill="#e94560" color="#e94560" />
-                {product._count.likes} likes
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Product Info */}
-        <div style={{
-          flex: '1 1 350px',
-          animation: 'slideUp 0.5s ease-out 0.1s both',
+        <div className="ln-product-layout" style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1.12fr) minmax(360px, 0.58fr)',
+          gap: 'clamp(1.5rem, 4vw, 4rem)',
+          alignItems: 'start',
         }}>
-          {/* Category pill */}
-          {product.category?.name && (
-            <span style={{
-              display: 'inline-block',
-              padding: '0.3rem 0.8rem',
-              background: 'rgba(108, 92, 231, 0.15)',
-              border: '1px solid rgba(108, 92, 231, 0.25)',
-              borderRadius: '20px',
-              fontSize: '0.8rem',
-              color: '#a78bfa',
-              fontWeight: 500,
-              marginBottom: '0.75rem',
-            }}>
-              {product.category.name}
-            </span>
-          )}
-
-          <h1 style={{
-            margin: '0 0 0.75rem',
-            fontSize: '2rem',
-            fontWeight: 700,
-            color: '#ffffff',
-            letterSpacing: '-0.02em',
-            lineHeight: 1.2,
-          }}>
-            {product.name}
-          </h1>
-
-          <p style={{
-            color: '#888',
-            lineHeight: 1.7,
-            fontSize: '0.95rem',
-            marginBottom: '1.5rem',
-          }}>
-            {product.description}
-          </p>
-
-          {/* Price */}
-          {selectedSku && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: '0.5rem',
-              marginBottom: '1.5rem',
-            }}>
-              <span style={{
-                fontSize: '2.2rem',
-                fontWeight: 700,
-                background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}>
-                ${Number(selectedSku.price).toFixed(2)}
-              </span>
-            </div>
-          )}
-
-          {/* Size selector */}
-          <div style={{ marginBottom: '1.25rem' }}>
-            <label style={{
-              color: '#888',
-              display: 'block',
-              marginBottom: '0.5rem',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}>
-              Size
-            </label>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {sizes.map(size => {
-                const isSelected = selectedSku?.size.id === size.id;
-                return (
-                  <button key={size.id}
-                    onClick={() => {
-                      const sku = product.skus.find(s => s.size.id === size.id && s.color.id === (selectedSku?.color.id ?? colors[0]?.id) && s.isActive);
-                      if (sku) setSelectedSku(sku);
-                    }}
-                    style={{
-                      padding: '0.6rem 1.2rem',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      background: isSelected
-                        ? 'linear-gradient(135deg, #6c5ce7, #5a4bd1)'
-                        : '#12122a',
-                      color: isSelected ? 'white' : '#b0b0c0',
-                      border: isSelected
-                        ? '1px solid #6c5ce7'
-                        : '1px solid #1e1e3a',
-                      fontSize: '0.9rem',
-                      fontWeight: isSelected ? 600 : 400,
-                      transition: 'all 0.2s ease',
-                    }}
-                    onMouseEnter={e => {
-                      if (!isSelected) e.currentTarget.style.borderColor = '#6c5ce7';
-                    }}
-                    onMouseLeave={e => {
-                      if (!isSelected) e.currentTarget.style.borderColor = '#1e1e3a';
-                    }}
-                  >
-                    {size.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Color selector */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{
-              color: '#888',
-              display: 'block',
-              marginBottom: '0.5rem',
-              fontSize: '0.85rem',
-              fontWeight: 500,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}>
-              Color
-            </label>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {colors.map(color => {
-                const isSelected = selectedSku?.color.id === color.id;
-                return (
-                  <button key={color.id}
-                    onClick={() => {
-                      const sku = product.skus.find(s => s.color.id === color.id && s.size.id === (selectedSku?.size.id ?? sizes[0]?.id) && s.isActive);
-                      if (sku) setSelectedSku(sku);
-                    }}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      background: isSelected ? '#12122a' : '#12122a',
-                      color: isSelected ? '#e0e0e0' : '#b0b0c0',
-                      border: isSelected
-                        ? '2px solid #00cec9'
-                        : '1px solid #1e1e3a',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      fontSize: '0.9rem',
-                      fontWeight: isSelected ? 500 : 400,
-                      transition: 'all 0.2s ease',
-                    }}
-                    onMouseEnter={e => {
-                      if (!isSelected) e.currentTarget.style.borderColor = '#00cec9';
-                    }}
-                    onMouseLeave={e => {
-                      if (!isSelected) e.currentTarget.style.borderColor = '#1e1e3a';
-                    }}
-                  >
-                    {color.hexCode && (
-                      <span style={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: '50%',
-                        background: color.hexCode,
-                        display: 'inline-block',
-                        border: '2px solid rgba(255,255,255,0.15)',
-                        boxShadow: isSelected ? `0 0 0 2px ${color.hexCode}33` : 'none',
-                      }} />
-                    )}
-                    {color.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Stock indicator */}
-          {selectedSku && (
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '0.4rem',
-              }}>
-                <span style={{
-                  fontSize: '0.85rem',
-                  color: stockColor,
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                }}>
-                  <Package size={14} />
-                  {selectedSku.stock > 0
-                    ? `${selectedSku.stock} in stock`
-                    : 'Out of stock'}
-                </span>
-                <span style={{ fontSize: '0.75rem', color: '#666' }}>
-                  SKU: {selectedSku.sku}
-                </span>
-              </div>
-              <div style={{
-                width: '100%',
-                height: '4px',
-                background: '#1e1e3a',
-                borderRadius: '2px',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  width: `${stockPercent}%`,
-                  height: '100%',
-                  background: stockColor,
-                  borderRadius: '2px',
-                  transition: 'width 0.5s ease, background 0.3s ease',
-                }} />
-              </div>
-            </div>
-          )}
-
-          {/* Quantity + Add to cart */}
-          <div style={{
-            display: 'flex',
-            gap: '1rem',
-            alignItems: 'center',
-          }}>
-            {/* Quantity controls */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: '#12122a',
-              borderRadius: '12px',
-              border: '1px solid #1e1e3a',
-              overflow: 'hidden',
-            }}>
-              <button
-                onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                style={{
-                  width: 42,
-                  height: 42,
-                  background: 'transparent',
-                  color: '#e0e0e0',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'background 0.2s ease',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#1e1e3a'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <Minus size={16} />
-              </button>
-              <span style={{
-                width: 44,
-                textAlign: 'center',
-                fontWeight: 600,
-                fontSize: '1rem',
-                color: '#e0e0e0',
-              }}>
-                {quantity}
-              </span>
-              <button
-                onClick={() => setQuantity(q => q + 1)}
-                style={{
-                  width: 42,
-                  height: 42,
-                  background: 'transparent',
-                  color: '#e0e0e0',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'background 0.2s ease',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#1e1e3a'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <Plus size={16} />
-              </button>
-            </div>
-
-            {/* Add to cart button */}
-            <button
-              onClick={handleAddToCart}
-              disabled={adding || !selectedSku || selectedSku.stock === 0}
-              style={{
-                flex: 1,
-                padding: '0.85rem 1.5rem',
-                background: message === 'success'
-                  ? 'linear-gradient(135deg, #00b894, #00cec9)'
-                  : 'linear-gradient(135deg, #6c5ce7, #5a4bd1)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 4px 15px rgba(108, 92, 231, 0.3)',
-              }}
-              onMouseEnter={e => {
-                if (!adding && message !== 'success') {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(108, 92, 231, 0.4)';
-                }
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(108, 92, 231, 0.3)';
-              }}
-            >
-              {adding ? (
-                <>
-                  <div style={{
-                    width: 18,
-                    height: 18,
-                    border: '2px solid rgba(255,255,255,0.3)',
-                    borderTopColor: 'white',
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
-                  }} />
-                  Adding...
-                </>
-              ) : message === 'success' ? (
-                <>
-                  <Check size={20} />
-                  Added to Cart!
-                </>
-              ) : (
-                <>
-                  <ShoppingCart size={20} />
-                  Add to Cart
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Error message */}
-          {message && message !== 'success' && (
-            <p style={{
-              marginTop: '0.75rem',
-              color: '#e94560',
-              fontSize: '0.9rem',
-              padding: '0.5rem 0.75rem',
-              background: 'rgba(233, 69, 96, 0.1)',
-              borderRadius: '8px',
-              border: '1px solid rgba(233, 69, 96, 0.2)',
-              animation: 'slideDown 0.3s ease-out',
-            }}>
-              {message}
-            </p>
-          )}
+          <ProductGallery product={product} accent={accent} />
+          <ProductPurchasePanel
+            accent={accent}
+            adding={adding}
+            colors={colors}
+            message={message}
+            product={product}
+            quantity={quantity}
+            selectedPrice={selectedPrice}
+            selectedSku={selectedSku}
+            sizes={sizes}
+            onAddToCart={handleAddToCart}
+            onToggleLike={handleToggleLike}
+            onQuantityChange={setQuantity}
+            onSkuChange={setSelectedSku}
+            canBuy={user?.role === 'client'}
+          />
         </div>
       </div>
-    </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .ln-product-layout {
+            grid-template-columns: 1fr !important;
+          }
+
+          .ln-gallery {
+            grid-template-columns: 1fr !important;
+          }
+
+          .ln-gallery > div {
+            grid-column: span 1 !important;
+            min-height: 430px !important;
+          }
+        }
+      `}</style>
+    </main>
   );
 }

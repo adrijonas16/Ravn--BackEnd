@@ -1,7 +1,7 @@
 import { IsBoolean, IsInt, IsNumber, IsOptional, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
-export class UpdateSkuDto {
+export class UpdateProductVariantDto {
   @ApiPropertyOptional({ example: 34.99 })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })

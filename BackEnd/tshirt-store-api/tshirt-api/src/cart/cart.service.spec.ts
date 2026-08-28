@@ -17,14 +17,11 @@ describe('CartService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
-      productSku: { findUnique: jest.fn() },
+      productVariant: { findUnique: jest.fn() },
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        CartService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [CartService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get(CartService);
@@ -32,33 +29,33 @@ describe('CartService', () => {
 
   describe('addItem', () => {
     it('should throw NotFoundException for non-existent SKU', async () => {
-      prisma.productSku.findUnique.mockResolvedValue(null);
+      prisma.productVariant.findUnique.mockResolvedValue(null);
       await expect(
-        service.addItem(1, { productSkuId: 999, quantity: 1 }),
+        service.addItem(1, { productVariantId: 999, quantity: 1 }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException for insufficient stock', async () => {
-      prisma.productSku.findUnique.mockResolvedValue({
+      prisma.productVariant.findUnique.mockResolvedValue({
         id: 1,
         stock: 2,
         isActive: true,
         product: { deletedAt: null },
       });
       await expect(
-        service.addItem(1, { productSkuId: 1, quantity: 5 }),
+        service.addItem(1, { productVariantId: 1, quantity: 5 }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw NotFoundException for inactive SKU', async () => {
-      prisma.productSku.findUnique.mockResolvedValue({
+      prisma.productVariant.findUnique.mockResolvedValue({
         id: 1,
         stock: 10,
         isActive: false,
         product: { deletedAt: null },
       });
       await expect(
-        service.addItem(1, { productSkuId: 1, quantity: 1 }),
+        service.addItem(1, { productVariantId: 1, quantity: 1 }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -68,7 +65,11 @@ describe('CartService', () => {
       prisma.cart.findFirst.mockResolvedValue({ id: 1 });
       prisma.cartItem.findFirst.mockResolvedValue(null);
       await expect(
-        service.updateItem(1, 999, { quantity: 2 }),
+        service.updateItem({
+          userId: 1,
+          itemId: 999,
+          dto: { quantity: 2 },
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -77,10 +78,14 @@ describe('CartService', () => {
       prisma.cartItem.findFirst.mockResolvedValue({
         id: 1,
         cartId: 1,
-        productSku: { stock: 3 },
+        productVariant: { stock: 3 },
       });
       await expect(
-        service.updateItem(1, 1, { quantity: 10 }),
+        service.updateItem({
+          userId: 1,
+          itemId: 1,
+          dto: { quantity: 10 },
+        }),
       ).rejects.toThrow(BadRequestException);
     });
   });

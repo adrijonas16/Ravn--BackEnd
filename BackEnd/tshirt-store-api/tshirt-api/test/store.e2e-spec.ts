@@ -15,19 +15,28 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { PrismaClient } from '@prisma/client';
+import { execFileSync } from 'node:child_process';
 import { AppModule } from '../src/app.module';
-import { PrismaService } from '../src/prisma/prisma.service';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const TEST_DB_URL =
-  'postgresql://postgres:pass_nerdery@127.0.0.1:5434/nerdery_db?schema=tshirt_store_test';
+  process.env.TEST_DATABASE_URL ??
+  'postgresql://postgres:pass_nerdery@127.0.0.1:5433/tshirt_store?schema=tshirt_store_test';
 
 /** A standalone Prisma client that points at the test schema. */
 function createTestPrisma(): PrismaClient {
   return new PrismaClient({ datasources: { db: { url: TEST_DB_URL } } });
+}
+
+function prepareTestDatabase(): void {
+  execFileSync('npx', ['prisma', 'db', 'push', '--skip-generate'], {
+    cwd: process.cwd(),
+    env: { ...process.env, DATABASE_URL: TEST_DB_URL },
+    stdio: 'pipe',
+  });
 }
 
 /** Truncate every table in the test schema (respects FK order). */
@@ -47,13 +56,14 @@ async function truncateAll(prisma: PrismaClient): Promise<void> {
     'promo_codes',
     'addresses',
     'product_likes',
-    'product_skus',
+    'product_variants',
     'product_images',
     'products',
     'colors',
     'sizes',
     'categories',
     'password_reset_tokens',
+    'refresh_tokens',
     'users',
     'roles',
   ];
@@ -81,6 +91,7 @@ async function registerUser(
   email: string;
   password: string;
   token: string;
+  refreshToken: string;
   userId: number;
 }> {
   const email = overrides.email ?? uniqueEmail();
@@ -95,6 +106,7 @@ async function registerUser(
     email,
     password,
     token: res.body.accessToken as string,
+    refreshToken: res.body.refreshToken as string,
     userId: res.body.user.id as number,
   };
 }
@@ -105,7 +117,9 @@ async function registerUser(
  *
  * Returns the created SKU id.
  */
-async function seedCatalogue(prisma: PrismaClient): Promise<{ skuId: number }> {
+async function seedCatalogue(
+  prisma: PrismaClient,
+): Promise<{ variantId: number }> {
   const category = await prisma.category.create({
     data: { name: 'T-Shirts', slug: 'tshirts', description: 'All t-shirts' },
   });
@@ -124,7 +138,7 @@ async function seedCatalogue(prisma: PrismaClient): Promise<{ skuId: number }> {
     data: { name: 'Black', hexCode: '#000000' },
   });
 
-  const sku = await prisma.productSku.create({
+  const sku = await prisma.productVariant.create({
     data: {
       productId: product.id,
       sizeId: size.id,
@@ -135,7 +149,7 @@ async function seedCatalogue(prisma: PrismaClient): Promise<{ skuId: number }> {
     },
   });
 
-  return { skuId: sku.id };
+  return { variantId: sku.id };
 }
 
 /** Create a shipping address for the given user. Returns the address id. */
@@ -169,6 +183,7 @@ describe('T-Shirt Store E2E', () => {
   beforeAll(async () => {
     // Override DATABASE_URL so the app talks to the test schema.
     process.env.DATABASE_URL = TEST_DB_URL;
+    prepareTestDatabase();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -221,6 +236,7 @@ describe('T-Shirt Store E2E', () => {
         .expect(201);
 
       expect(res.body).toHaveProperty('accessToken');
+      expect(res.body).toHaveProperty('refreshToken');
       expect(res.body.user).toMatchObject({
         email,
         firstName: 'Jane',
@@ -270,7 +286,40 @@ describe('T-Shirt Store E2E', () => {
         .expect(200);
 
       expect(res.body).toHaveProperty('accessToken');
+      expect(res.body).toHaveProperty('refreshToken');
       expect(res.body.user.email).toBe(email);
+    });
+
+    it('should refresh and rotate a valid refresh token', async () => {
+      const { refreshToken } = await registerUser(server);
+
+      const refreshRes = await request(server)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken })
+        .expect(200);
+
+      expect(refreshRes.body).toHaveProperty('accessToken');
+      expect(refreshRes.body).toHaveProperty('refreshToken');
+      expect(refreshRes.body.refreshToken).not.toBe(refreshToken);
+
+      await request(server)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken })
+        .expect(401);
+    });
+
+    it('should revoke a refresh token on signout', async () => {
+      const { refreshToken } = await registerUser(server);
+
+      await request(server)
+        .post('/api/v1/auth/signout')
+        .send({ refreshToken })
+        .expect(200);
+
+      await request(server)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken })
+        .expect(401);
     });
 
     it('should reject login with wrong password', async () => {
@@ -316,13 +365,13 @@ describe('T-Shirt Store E2E', () => {
   describe('Checkout flow', () => {
     let token: string;
     let userId: number;
-    let skuId: number;
+    let variantId: number;
     let addressId: number;
 
     beforeAll(async () => {
       await truncateAll(prisma);
       const catalogue = await seedCatalogue(prisma);
-      skuId = catalogue.skuId;
+      variantId = catalogue.variantId;
 
       const user = await registerUser(server);
       token = user.token;
@@ -335,11 +384,11 @@ describe('T-Shirt Store E2E', () => {
       const res = await request(server)
         .post('/api/v1/cart/items')
         .set('Authorization', `Bearer ${token}`)
-        .send({ productSkuId: skuId, quantity: 2 })
+        .send({ productVariantId: variantId, quantity: 2 })
         .expect(201);
 
       expect(res.body.items).toHaveLength(1);
-      expect(res.body.items[0].productSkuId).toBe(skuId);
+      expect(res.body.items[0].productVariantId).toBe(variantId);
       expect(res.body.items[0].quantity).toBe(2);
     });
 
@@ -384,14 +433,14 @@ describe('T-Shirt Store E2E', () => {
     let tokenB: string;
     let userIdA: number;
     let userIdB: number;
-    let skuId: number;
+    let variantId: number;
     let addressIdA: number;
     let addressIdB: number;
 
     beforeAll(async () => {
       await truncateAll(prisma);
       const catalogue = await seedCatalogue(prisma);
-      skuId = catalogue.skuId;
+      variantId = catalogue.variantId;
 
       const userA = await registerUser(server, { email: uniqueEmail('alice') });
       tokenA = userA.token;
@@ -408,7 +457,7 @@ describe('T-Shirt Store E2E', () => {
       await request(server)
         .post('/api/v1/cart/items')
         .set('Authorization', `Bearer ${tokenA}`)
-        .send({ productSkuId: skuId, quantity: 1 })
+        .send({ productVariantId: variantId, quantity: 1 })
         .expect(201);
 
       await request(server)
@@ -421,7 +470,7 @@ describe('T-Shirt Store E2E', () => {
       await request(server)
         .post('/api/v1/cart/items')
         .set('Authorization', `Bearer ${tokenB}`)
-        .send({ productSkuId: skuId, quantity: 3 })
+        .send({ productVariantId: variantId, quantity: 3 })
         .expect(201);
 
       await request(server)

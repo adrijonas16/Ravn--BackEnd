@@ -1,8 +1,39 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../api/auth';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { Mail, Lock, User, Eye, EyeOff, UserPlus, Shirt } from 'lucide-react';
+
+const inputWrapperStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.75rem',
+  background: '#f7f4ef',
+  borderRadius: '12px',
+  border: '1px solid #ded7cc',
+  padding: '0 1rem',
+  transition: 'border-color 0.2s ease',
+};
+
+const inputStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '0.85rem 0',
+  border: 'none',
+  background: 'transparent',
+  color: '#111111',
+  outline: 'none',
+  fontSize: '0.95rem',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  color: '#666666',
+  fontSize: '0.8rem',
+  fontWeight: 500,
+  marginBottom: '0.4rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+};
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: '', password: '', firstName: '', lastName: '' });
@@ -18,7 +49,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const { data } = await authApi.signUp(form);
-      login(data.accessToken, data.user);
+      login(data.accessToken, data.refreshToken, data.user);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
@@ -29,37 +60,6 @@ export default function RegisterPage() {
 
   const update = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
-
-  const inputWrapperStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    background: '#0a0a1a',
-    borderRadius: '12px',
-    border: '1px solid #1e1e3a',
-    padding: '0 1rem',
-    transition: 'border-color 0.2s ease',
-  };
-
-  const inputStyle: React.CSSProperties = {
-    flex: 1,
-    padding: '0.85rem 0',
-    border: 'none',
-    background: 'transparent',
-    color: '#e0e0e0',
-    outline: 'none',
-    fontSize: '0.95rem',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    color: '#888',
-    fontSize: '0.8rem',
-    fontWeight: 500,
-    marginBottom: '0.4rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  };
 
   return (
     <div style={{
@@ -98,9 +98,9 @@ export default function RegisterPage() {
         animation: 'scaleIn 0.4s ease-out',
       }}>
         <div style={{
-          background: '#12122a',
+          background: '#ffffff',
           borderRadius: '24px',
-          border: '1px solid #1e1e3a',
+          border: '1px solid #ded7cc',
           padding: 'clamp(1.5rem, 4vw, 2.5rem)',
           position: 'relative',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
@@ -112,7 +112,7 @@ export default function RegisterPage() {
             left: 0,
             right: 0,
             height: '2px',
-            background: 'linear-gradient(90deg, #00cec9, #6c5ce7, #00cec9)',
+            background: 'linear-gradient(90deg, #2457ff, #2457ff, #2457ff)',
           }} />
 
           {/* Logo */}
@@ -121,7 +121,7 @@ export default function RegisterPage() {
               width: 60,
               height: 60,
               borderRadius: '16px',
-              background: 'linear-gradient(135deg, #00cec9, #6c5ce7)',
+              background: 'linear-gradient(135deg, #2457ff, #2457ff)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -134,11 +134,11 @@ export default function RegisterPage() {
               margin: '0 0 0.25rem',
               fontSize: '1.5rem',
               fontWeight: 700,
-              color: '#ffffff',
+              color: '#111111',
             }}>
               Create Account
             </h1>
-            <p style={{ margin: 0, color: '#888', fontSize: '0.9rem' }}>
+            <p style={{ margin: 0, color: '#666666', fontSize: '0.9rem' }}>
               Join ThreadVault today
             </p>
           </div>
@@ -167,10 +167,11 @@ export default function RegisterPage() {
             {/* Name row */}
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 140px', minWidth: 0 }}>
-                <label style={labelStyle}>First Name</label>
+                <label htmlFor="register-first-name" style={labelStyle}>First Name</label>
                 <div style={inputWrapperStyle}>
-                  <User size={18} color="#666" />
+                  <User size={18} color="#777777" />
                   <input
+                    id="register-first-name"
                     placeholder="John"
                     value={form.firstName}
                     onChange={update('firstName')}
@@ -180,10 +181,11 @@ export default function RegisterPage() {
                 </div>
               </div>
               <div style={{ flex: '1 1 140px', minWidth: 0 }}>
-                <label style={labelStyle}>Last Name</label>
+                <label htmlFor="register-last-name" style={labelStyle}>Last Name</label>
                 <div style={inputWrapperStyle}>
-                  <User size={18} color="#666" />
+                  <User size={18} color="#777777" />
                   <input
+                    id="register-last-name"
                     placeholder="Doe"
                     value={form.lastName}
                     onChange={update('lastName')}
@@ -196,10 +198,11 @@ export default function RegisterPage() {
 
             {/* Email */}
             <div>
-              <label style={labelStyle}>Email</label>
+              <label htmlFor="register-email" style={labelStyle}>Email</label>
               <div style={inputWrapperStyle}>
-                <Mail size={18} color="#666" />
+                <Mail size={18} color="#777777" />
                 <input
+                  id="register-email"
                   type="email"
                   placeholder="you@example.com"
                   value={form.email}
@@ -212,10 +215,11 @@ export default function RegisterPage() {
 
             {/* Password */}
             <div>
-              <label style={labelStyle}>Password</label>
+              <label htmlFor="register-password" style={labelStyle}>Password</label>
               <div style={inputWrapperStyle}>
-                <Lock size={18} color="#666" />
+                <Lock size={18} color="#777777" />
                 <input
+                  id="register-password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Min 8 characters"
                   value={form.password}
@@ -226,11 +230,12 @@ export default function RegisterPage() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword(!showPassword)}
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#666',
+                    color: '#777777',
                     cursor: 'pointer',
                     padding: '0.25rem',
                     display: 'flex',
@@ -253,7 +258,7 @@ export default function RegisterPage() {
               disabled={loading}
               style={{
                 padding: '0.9rem',
-                background: 'linear-gradient(135deg, #6c5ce7, #5a4bd1)',
+                background: 'linear-gradient(135deg, #2457ff, #111111)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '12px',
@@ -264,7 +269,7 @@ export default function RegisterPage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.5rem',
-                transition: 'all 0.2s ease',
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 marginTop: '0.5rem',
                 boxShadow: '0 4px 15px rgba(108, 92, 231, 0.3)',
               }}
@@ -302,19 +307,19 @@ export default function RegisterPage() {
 
           <p style={{
             marginTop: '1.5rem',
-            color: '#888',
+            color: '#666666',
             textAlign: 'center',
             fontSize: '0.9rem',
           }}>
             Already have an account?{' '}
             <Link to="/login" style={{
-              color: '#6c5ce7',
+              color: '#2457ff',
               fontWeight: 600,
               textDecoration: 'none',
               transition: 'color 0.2s',
             }}
-              onMouseEnter={e => e.currentTarget.style.color = '#00cec9'}
-              onMouseLeave={e => e.currentTarget.style.color = '#6c5ce7'}
+              onMouseEnter={e => e.currentTarget.style.color = '#2457ff'}
+              onMouseLeave={e => e.currentTarget.style.color = '#2457ff'}
             >
               Sign in
             </Link>

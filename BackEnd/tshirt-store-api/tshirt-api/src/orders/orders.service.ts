@@ -8,6 +8,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStatus } from '@prisma/client';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
+import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
+import { UpdateOrderStatusCommandDto } from './dto/update-order-status-command.dto';
+import { CancelOrderCommandDto } from './dto/cancel-order-command.dto';
 
 // Máquina de estados: define qué transiciones de estado son válidas
 // Ej: de "paid" solo puede ir a "processing" o "cancelled", nunca a "delivered" directamente
@@ -30,9 +33,11 @@ export class OrdersService {
       include: {
         items: {
           include: {
-            productSku: {
+            productVariant: {
               include: {
-                product: { include: { images: { where: { isPrimary: true }, take: 1 } } },
+                product: {
+                  include: { images: { where: { isPrimary: true }, take: 1 } },
+                },
                 size: true,
                 color: true,
               },
@@ -54,9 +59,9 @@ export class OrdersService {
 
     // Valida stock disponible para cada item antes de crear la orden
     for (const item of cart.items) {
-      if (item.productSku.stock < item.quantity) {
+      if (item.productVariant.stock < item.quantity) {
         throw new BadRequestException(
-          `Insufficient stock for ${item.productSku.sku} (available: ${item.productSku.stock})`,
+          `Insufficient stock for ${item.productVariant.sku} (available: ${item.productVariant.stock})`,
         );
       }
     }
@@ -65,17 +70,17 @@ export class OrdersService {
     // (se copia nombre, precio, etc. para que no cambien si el producto se edita después)
     let subtotal = 0;
     const orderItems = cart.items.map((item) => {
-      const lineTotal = Number(item.productSku.price) * item.quantity;
+      const lineTotal = Number(item.productVariant.price) * item.quantity;
       subtotal += lineTotal;
       return {
-        productSkuId: item.productSkuId,
-        productName: item.productSku.product.name,
-        skuCode: item.productSku.sku,
-        sizeName: item.productSku.size.name,
-        colorName: item.productSku.color.name,
-        imageUrl: item.productSku.product.images[0]?.publicUrl ?? null,
+        productVariantId: item.productVariantId,
+        productName: item.productVariant.product.name,
+        skuCode: item.productVariant.sku,
+        sizeName: item.productVariant.size.name,
+        colorName: item.productVariant.color.name,
+        imageUrl: item.productVariant.product.images[0]?.publicUrl ?? null,
         quantity: item.quantity,
-        unitPrice: item.productSku.price,
+        unitPrice: item.productVariant.price,
         lineTotal,
       };
     });
@@ -93,7 +98,8 @@ export class OrdersService {
         promo &&
         promo.isActive &&
         promo.expiresAt > new Date() &&
-        (!promo.minimumPurchaseAmount || subtotal >= Number(promo.minimumPurchaseAmount))
+        (!promo.minimumPurchaseAmount ||
+          subtotal >= Number(promo.minimumPurchaseAmount))
       ) {
         const redemptionCount = await this.prisma.promoCodeRedemption.count({
           where: { promoCodeId: promo.id },
@@ -167,18 +173,7 @@ export class OrdersService {
     return order;
   }
 
-  async findAll(
-    user: AuthenticatedUser,
-    params: {
-      page: number;
-      limit: number;
-      status?: OrderStatus;
-      fromDate?: string;
-      toDate?: string;
-      minAmount?: number;
-      maxAmount?: number;
-    },
-  ) {
+  async findAll(user: AuthenticatedUser, params: ListOrdersQueryDto) {
     const { page, limit, status, fromDate, toDate, minAmount, maxAmount } =
       params;
     const skip = (page - 1) * limit;
@@ -213,7 +208,28 @@ export class OrdersService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: { payments: { take: 1 } },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+            },
+          },
+          deliveryPerson: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+            },
+          },
+          items: true,
+          payments: { take: 1 },
+        },
       }),
       this.prisma.order.count({ where }),
     ]);
@@ -227,6 +243,44 @@ export class OrdersService {
         discountAmount: Number(o.discountAmount),
         totalAmount: Number(o.totalAmount),
         paymentMethod: o.payments[0]?.method ?? null,
+        customer: {
+          id: o.user.id,
+          email: o.user.email,
+          firstName: o.user.firstName,
+          lastName: o.user.lastName,
+          phone: o.user.phone,
+        },
+        deliveryPerson: o.deliveryPerson
+          ? {
+              id: o.deliveryPerson.id,
+              email: o.deliveryPerson.email,
+              firstName: o.deliveryPerson.firstName,
+              lastName: o.deliveryPerson.lastName,
+              phone: o.deliveryPerson.phone,
+            }
+          : null,
+        shippingAddress: {
+          recipientName: o.recipientName,
+          recipientPhone: o.recipientPhone,
+          line1: o.shippingLine1,
+          line2: o.shippingLine2,
+          city: o.shippingCity,
+          stateRegion: o.shippingStateRegion,
+          postalCode: o.shippingPostalCode,
+          countryCode: o.shippingCountryCode,
+        },
+        items: o.items.map((item) => ({
+          id: item.id,
+          productVariantId: item.productVariantId,
+          productName: item.productName,
+          skuCode: item.skuCode,
+          sizeName: item.sizeName,
+          colorName: item.colorName,
+          imageUrl: item.imageUrl,
+          unitPrice: Number(item.unitPrice),
+          quantity: item.quantity,
+          lineTotal: Number(item.lineTotal),
+        })),
         createdAt: o.createdAt,
       })),
       meta: {
@@ -268,14 +322,13 @@ export class OrdersService {
     return order;
   }
 
-  async updateStatus(
-    orderId: number,
-    newStatus: OrderStatus,
-    user: AuthenticatedUser,
-    reason?: string,
-  ) {
+  async updateStatus(command: UpdateOrderStatusCommandDto) {
+    const { orderId, status: newStatus, user, reason } = command;
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
+      include: {
+        user: { select: { id: true, email: true } },
+      },
     });
     if (!order) throw new NotFoundException('Order not found');
 
@@ -288,7 +341,10 @@ export class OrdersService {
     }
 
     // Validación por rol: el repartidor solo puede marcar como "delivered"
-    if (user.role === 'delivery_person' && newStatus !== OrderStatus.delivered) {
+    if (
+      user.role === 'delivery_person' &&
+      newStatus !== OrderStatus.delivered
+    ) {
       throw new ForbiddenException(
         'Delivery person can only mark orders as delivered',
       );
@@ -324,21 +380,29 @@ export class OrdersService {
         },
       });
 
+      await tx.notification.create({
+        data: {
+          userId: order.user.id,
+          type: `order_${newStatus}`,
+          recipientEmail: order.user.email,
+        },
+      });
+
       // Al cancelar: devuelve el stock de cada item y registra el movimiento de inventario
       if (newStatus === OrderStatus.cancelled) {
         for (const item of updated.items) {
           // increment: suma la cantidad de vuelta al stock del SKU
-          await tx.productSku.update({
-            where: { id: item.productSkuId },
+          await tx.productVariant.update({
+            where: { id: item.productVariantId },
             data: { stock: { increment: item.quantity } },
           });
-          const sku = await tx.productSku.findUnique({
-            where: { id: item.productSkuId },
+          const sku = await tx.productVariant.findUnique({
+            where: { id: item.productVariantId },
           });
           // Registra el movimiento para trazabilidad del inventario
           await tx.inventoryMovement.create({
             data: {
-              productSkuId: item.productSkuId,
+              productVariantId: item.productVariantId,
               orderId,
               movementType: 'cancellation',
               quantityChange: item.quantity,
@@ -354,11 +418,8 @@ export class OrdersService {
   }
 
   // Endpoint específico para cancelar (más restrictivo que updateStatus)
-  async cancelOrder(
-    orderId: number,
-    user: AuthenticatedUser,
-    reason?: string,
-  ) {
+  async cancelOrder(command: CancelOrderCommandDto) {
+    const { orderId, user, reason } = command;
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
     });
@@ -377,6 +438,11 @@ export class OrdersService {
     }
 
     // Reutiliza updateStatus para la lógica de transacción y restauración de stock
-    return this.updateStatus(orderId, OrderStatus.cancelled, user, reason);
+    return this.updateStatus({
+      orderId,
+      status: OrderStatus.cancelled,
+      user,
+      reason,
+    });
   }
 }

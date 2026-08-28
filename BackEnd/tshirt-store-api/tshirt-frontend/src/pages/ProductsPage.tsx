@@ -1,533 +1,237 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, Heart, Search, Shirt } from 'lucide-react';
 import { productsApi } from '../api/products';
-import { Product, Category } from '../types';
-import { Search, Heart, ChevronLeft, ChevronRight, Filter, Shirt, Sparkles, Star } from 'lucide-react';
+import { useAuth } from '../context/useAuth';
+import { Category, Product, ProductVariant } from '../types';
 
-const CATEGORY_GRADIENTS: Record<string, string> = {
-  graphic: 'linear-gradient(135deg, #6c5ce7, #a855f7, #6c5ce7)',
-  basic: 'linear-gradient(135deg, #2d2d4a, #3d3d5c, #2d2d4a)',
-  premium: 'linear-gradient(135deg, #f59e0b, #d97706, #b45309)',
-  vintage: 'linear-gradient(135deg, #d97706, #92400e, #78350f)',
-  sport: 'linear-gradient(135deg, #00b894, #00cec9, #00b894)',
-};
+const ACCENTS = ['#2457ff', '#111111', '#00a676', '#d63447', '#c5a253'];
+const SKELETON_IDS = ['product-1', 'product-2', 'product-3', 'product-4', 'product-5', 'product-6', 'product-7', 'product-8'];
 
-const CATEGORY_ICONS: Record<string, string> = {
-  graphic: 'linear-gradient(135deg, #a78bfa, #c4b5fd)',
-  basic: 'linear-gradient(135deg, #94a3b8, #cbd5e1)',
-  premium: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-  vintage: 'linear-gradient(135deg, #f59e0b, #d97706)',
-  sport: 'linear-gradient(135deg, #34d399, #6ee7b7)',
-};
-
-function getCategoryGradient(categoryName?: string): string {
-  if (!categoryName) return CATEGORY_GRADIENTS.basic;
-  const key = categoryName.toLowerCase();
-  for (const [k, v] of Object.entries(CATEGORY_GRADIENTS)) {
-    if (key.includes(k)) return v;
-  }
-  return 'linear-gradient(135deg, #6c5ce7, #00cec9)';
-}
-
-function getCategoryShirtColor(categoryName?: string): string {
-  if (!categoryName) return 'rgba(255,255,255,0.3)';
-  const key = categoryName.toLowerCase();
-  for (const [k] of Object.entries(CATEGORY_ICONS)) {
-    if (key.includes(k)) return 'rgba(255,255,255,0.25)';
-  }
-  return 'rgba(255,255,255,0.25)';
+function getAvailableSizes(variants: ProductVariant[] = []) {
+  const available = variants.filter((variant) => variant.isActive && variant.stock > 0);
+  return [...new Map(available.map((variant) => [variant.size.id, variant])).values()];
 }
 
 export default function ProductsPage() {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState('');
+  const [submittedSearch, setSubmittedSearch] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>();
   const [loading, setLoading] = useState(true);
-  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === categoryId),
+    [categories, categoryId],
+  );
+
+  const loadProducts = useCallback(() => {
+    setLoading(true);
+    productsApi.list({ page, limit: 12, categoryId, search: submittedSearch || undefined })
+      .then(async ({ data }) => {
+        let nextProducts = data.data;
+        if (isAuthenticated && nextProducts.length > 0) {
+          try {
+            const likedResponse = await productsApi.listLiked({ page: 1, limit: 100 });
+            const likedIds = new Set(likedResponse.data.data.map((product) => product.id));
+            nextProducts = nextProducts.map((product) => ({
+              ...product,
+              isLiked: likedIds.has(product.id),
+            }));
+          } catch { /* keep public product list */ }
+        }
+        setProducts(nextProducts);
+        setTotalPages(data.meta.totalPages);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [categoryId, isAuthenticated, page, submittedSearch]);
 
   useEffect(() => {
     loadProducts();
-  }, [page, categoryId]);
+  }, [loadProducts]);
 
   useEffect(() => {
-    productsApi.listCategories().then(r => setCategories(r.data)).catch(() => {});
+    productsApi.listCategories().then((response) => setCategories(response.data)).catch(() => {});
   }, []);
 
-  const loadProducts = async () => {
-    setLoading(true);
-    try {
-      const { data } = await productsApi.list({ page, limit: 12, categoryId, search: search || undefined });
-      setProducts(data.data);
-      setTotalPages(data.meta.totalPages);
-    } catch { /* ignore */ }
-    setLoading(false);
+  const handleSearch = (event: FormEvent) => {
+    event.preventDefault();
+    setPage(1);
+    setSubmittedSearch(search);
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-    loadProducts();
+  const toggleLike = async (product: Product) => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    const wasLiked = !!product.isLiked;
+    setProducts((current) => current.map((item) => (
+      item.id === product.id
+        ? {
+          ...item,
+          isLiked: !wasLiked,
+          likesCount: Math.max(0, (item.likesCount ?? 0) + (wasLiked ? -1 : 1)),
+        }
+        : item
+    )));
+
+    try {
+      if (wasLiked) {
+        await productsApi.unlike(product.id);
+      } else {
+        await productsApi.like(product.id);
+      }
+    } catch (error: any) {
+      if (!wasLiked && error.response?.status === 409) {
+        setProducts((current) => current.map((item) => (
+          item.id === product.id ? { ...item, isLiked: true } : item
+        )));
+        return;
+      }
+      setProducts((current) => current.map((item) => (
+        item.id === product.id
+          ? {
+            ...item,
+            isLiked: wasLiked,
+            likesCount: Math.max(0, (item.likesCount ?? 0) + (wasLiked ? 1 : -1)),
+          }
+          : item
+      )));
+    }
   };
 
   return (
-    <div style={{ animation: 'fadeIn 0.5s ease-out' }}>
-      {/* Hero Section */}
-      <div style={{
-        position: 'relative',
-        padding: '4rem 2rem 3rem',
-        textAlign: 'center',
-        overflow: 'hidden',
-      }}>
-        {/* Background gradient orbs */}
-        <div style={{
-          position: 'absolute',
-          top: '-50%',
-          left: '20%',
-          width: '400px',
-          height: '400px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(108, 92, 231, 0.15), transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        <div style={{
-          position: 'absolute',
-          top: '-30%',
-          right: '15%',
-          width: '300px',
-          height: '300px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(0, 206, 201, 0.1), transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.4rem 1rem',
-          background: 'rgba(108, 92, 231, 0.15)',
-          borderRadius: '20px',
-          border: '1px solid rgba(108, 92, 231, 0.25)',
-          marginBottom: '1rem',
-          fontSize: '0.85rem',
-          color: '#a78bfa',
-        }}>
-          <Sparkles size={14} />
-          New Collection Available
+    <main className="collection-page">
+      <section className="collection-page__hero store-container">
+        <div className="collection-page__hero-grid">
+          <div>
+            <p className="collection-page__eyebrow">{selectedCategory?.name ?? 'Summer sale'}</p>
+            <h1 className="collection-page__title">ThreadVault tees</h1>
+          </div>
+          <p className="collection-page__intro">
+            Premium daily t-shirts with bold graphics, clean basics, and performance-ready fits.
+          </p>
         </div>
+      </section>
 
-        <h1 style={{
-          fontSize: 'clamp(2rem, 5vw, 3.2rem)',
-          fontWeight: 800,
-          background: 'linear-gradient(135deg, #ffffff, #b0b0c0)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          marginBottom: '0.75rem',
-          letterSpacing: '-0.03em',
-          lineHeight: 1.15,
-        }}>
-          Discover Your Style
-        </h1>
-        <p style={{
-          color: '#888',
-          fontSize: '1.1rem',
-          maxWidth: '500px',
-          margin: '0 auto 2rem',
-          lineHeight: 1.6,
-        }}>
-          Premium t-shirts crafted for comfort and designed to stand out
-        </p>
-      </div>
-
-      {/* Search & Filter Bar */}
-      <div style={{
-        maxWidth: 1200,
-        margin: '0 auto',
-        padding: '0 2rem 2rem',
-      }}>
-        <div style={{
-          display: 'flex',
-          gap: '0.75rem',
-          flexWrap: 'wrap',
-          padding: '1rem',
-          background: '#12122a',
-          borderRadius: '16px',
-          border: '1px solid #1e1e3a',
-        }}>
-          <form onSubmit={handleSearch} style={{
-            display: 'flex',
-            gap: '0.5rem',
-            flex: '1 1 300px',
-          }}>
-            <div style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: '#0a0a1a',
-              borderRadius: '10px',
-              border: '1px solid #1e1e3a',
-              padding: '0 1rem',
-              transition: 'border-color 0.2s ease',
-            }}>
-              <Search size={18} color="#888" />
-              <input
-                placeholder="Search t-shirts..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: '0.7rem 0',
-                  border: 'none',
-                  background: 'transparent',
-                  color: '#e0e0e0',
-                  outline: 'none',
-                  fontSize: '0.95rem',
-                }}
-              />
+      <section className="collection-page__filters store-container">
+        <div className="collection-page__filter-grid">
+          <form onSubmit={handleSearch} className="collection-page__search">
+            <div className="collection-page__search-icon">
+              <Search size={18} />
             </div>
-            <button type="submit" style={{
-              padding: '0.7rem 1.5rem',
-              background: 'linear-gradient(135deg, #6c5ce7, #5a4bd1)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-            }}
-              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-            >
-              <Search size={16} />
-              Search
-            </button>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search products"
+              aria-label="Search products"
+            />
+            <button type="submit">Search</button>
           </form>
 
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: '#0a0a1a',
-            borderRadius: '10px',
-            border: '1px solid #1e1e3a',
-            padding: '0 0.75rem',
-          }}>
-            <Filter size={16} color="#888" />
-            <select
-              value={categoryId ?? ''}
-              onChange={e => { setCategoryId(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
-              style={{
-                padding: '0.7rem 0.5rem',
-                border: 'none',
-                background: 'transparent',
-                color: '#e0e0e0',
-                outline: 'none',
-                fontSize: '0.9rem',
-                cursor: 'pointer',
-                minWidth: '160px',
-              }}
-            >
-              <option value="" style={{ background: '#0a0a1a' }}>All Categories</option>
-              {categories.map(c => (
-                <option key={c.id} value={c.id} style={{ background: '#0a0a1a' }}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={categoryId ?? ''}
+            onChange={(event) => { setCategoryId(event.target.value ? Number(event.target.value) : undefined); setPage(1); }}
+            className="collection-page__select"
+            aria-label="Filter by category"
+          >
+            <option value="">All categories</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
         </div>
-      </div>
+      </section>
 
-      {/* Product Grid */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 2rem 3rem' }}>
+      <section className="collection-page__content store-container">
         {loading ? (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))',
-            gap: '1.5rem',
-          }}>
-            {[...Array(6)].map((_, i) => (
-              <div key={i} style={{
-                background: '#12122a',
-                borderRadius: '16px',
-                overflow: 'hidden',
-                border: '1px solid #1e1e3a',
-              }}>
-                <div style={{
-                  height: 220,
-                  background: 'linear-gradient(90deg, #1e1e3a 25%, #2a2a4a 50%, #1e1e3a 75%)',
-                  backgroundSize: '200% 100%',
-                  animation: 'shimmer 1.5s ease-in-out infinite',
-                }} />
-                <div style={{ padding: '1.2rem' }}>
-                  <div style={{ height: 16, background: '#1e1e3a', borderRadius: 4, marginBottom: 8, width: '70%' }} />
-                  <div style={{ height: 12, background: '#1e1e3a', borderRadius: 4, width: '40%' }} />
-                </div>
+          <div className="collection-page__grid">
+            {SKELETON_IDS.map((id) => (
+              <div key={id} className="collection-card collection-card--loading">
+                <div className="collection-card__skeleton" />
               </div>
             ))}
           </div>
         ) : products.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '4rem 2rem',
-            color: '#888',
-            animation: 'fadeIn 0.5s ease-out',
-          }}>
-            <Shirt size={64} strokeWidth={1} color="#333" />
-            <p style={{ marginTop: '1rem', fontSize: '1.1rem' }}>No products found</p>
-            <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Try adjusting your search or filters</p>
+          <div className="collection-page__empty">
+            <Shirt size={54} strokeWidth={1.2} />
+            <p>No products found</p>
           </div>
         ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))',
-            gap: '1.5rem',
-          }}>
+          <div className="collection-page__grid">
             {products.map((product, index) => {
-              const isHovered = hoveredCard === product.id;
+              const accent = ACCENTS[index % ACCENTS.length];
+              const images = product.images ?? [];
+              const primaryImage = product.primaryImage ?? images[0]?.publicUrl;
+              const hoverImage = images.find((image) => image.publicUrl !== primaryImage)?.publicUrl;
+              const sizes = getAvailableSizes(product.variants);
               return (
-                <Link
-                  to={`/products/${product.id}`}
-                  key={product.id}
-                  style={{
-                    textDecoration: 'none',
-                    color: 'inherit',
-                    animation: `slideUp 0.5s ease-out ${index * 0.05}s both`,
-                  }}
-                  onMouseEnter={() => setHoveredCard(product.id)}
-                  onMouseLeave={() => setHoveredCard(null)}
-                >
-                  <div style={{
-                    background: '#12122a',
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    border: `1px solid ${isHovered ? 'rgba(108, 92, 231, 0.4)' : '#1e1e3a'}`,
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    transform: isHovered ? 'translateY(-6px)' : 'translateY(0)',
-                    boxShadow: isHovered
-                      ? '0 20px 40px rgba(108, 92, 231, 0.15), 0 0 0 1px rgba(108, 92, 231, 0.1)'
-                      : '0 4px 20px rgba(0, 0, 0, 0.2)',
-                    cursor: 'pointer',
-                  }}>
-                    {/* Gradient image area */}
-                    <div style={{
-                      height: 220,
-                      background: getCategoryGradient(product.category?.name),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      position: 'relative',
-                      overflow: 'hidden',
-                    }}>
-                      {product.primaryImage ? (
-                        <img
-                          src={product.primaryImage}
-                          alt={product.name}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
+                <article key={product.id} className={`collection-card ${hoverImage ? 'collection-card--has-hover' : ''}`} style={{ animation: `slideUp 0.35s ease-out ${index * 0.03}s both` }}>
+                  <Link to={`/products/${product.id}`} className="collection-card__media">
+                    {primaryImage ? (
+                      <>
+                        <img className="collection-card__image collection-card__image--primary" src={primaryImage} alt={product.name} />
+                        {hoverImage && <img className="collection-card__image collection-card__image--hover" src={hoverImage} alt="" />}
+                      </>
                       ) : (
                         <>
-                          {/* Decorative pattern */}
-                          <div style={{
-                            position: 'absolute',
-                            inset: 0,
-                            opacity: 0.1,
-                            backgroundImage: `radial-gradient(circle at 30% 50%, rgba(255,255,255,0.3) 0%, transparent 50%),
-                              radial-gradient(circle at 70% 30%, rgba(255,255,255,0.2) 0%, transparent 40%)`,
-                          }} />
-                          <Shirt
-                            size={72}
-                            strokeWidth={1}
-                            color={getCategoryShirtColor(product.category?.name)}
-                            style={{
-                              transition: 'transform 0.3s ease',
-                              transform: isHovered ? 'scale(1.1) rotate(-5deg)' : 'scale(1)',
-                            }}
-                          />
+                          <div className="collection-card__placeholder-ring" style={{ borderColor: accent }} />
+                          <Shirt size={92} strokeWidth={1.1} color={accent} />
                         </>
                       )}
-
-                      {/* Category badge */}
-                      {product.category?.name && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '0.75rem',
-                          left: '0.75rem',
-                          padding: '0.25rem 0.7rem',
-                          background: 'rgba(0, 0, 0, 0.4)',
-                          backdropFilter: 'blur(10px)',
-                          borderRadius: '6px',
-                          fontSize: '0.75rem',
-                          color: 'rgba(255, 255, 255, 0.9)',
-                          fontWeight: 500,
-                        }}>
-                          {product.category.name}
-                        </div>
-                      )}
-
-                      {/* Likes badge */}
-                      {product.likesCount !== undefined && product.likesCount > 0 && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '0.75rem',
-                          right: '0.75rem',
-                          padding: '0.25rem 0.6rem',
-                          background: 'rgba(233, 69, 96, 0.85)',
-                          backdropFilter: 'blur(10px)',
-                          borderRadius: '6px',
-                          fontSize: '0.75rem',
-                          color: 'white',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                        }}>
-                          <Heart size={12} fill="white" />
-                          {product.likesCount}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Card content */}
-                    <div style={{ padding: '1.2rem' }}>
-                      <h3 style={{
-                        margin: '0 0 0.4rem',
-                        fontSize: '1rem',
-                        fontWeight: 600,
-                        color: '#e0e0e0',
-                        lineHeight: 1.3,
-                      }}>
-                        {product.name}
-                      </h3>
-
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginTop: '0.75rem',
-                      }}>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                        }}>
-                          <Star size={14} fill="#f59e0b" color="#f59e0b" />
-                          <span style={{ color: '#888', fontSize: '0.8rem' }}>
-                            {product.category?.name || 'Uncategorized'}
-                          </span>
-                        </div>
-
-                        <div style={{
-                          padding: '0.2rem 0.6rem',
-                          background: isHovered ? 'rgba(108, 92, 231, 0.2)' : 'rgba(108, 92, 231, 0.1)',
-                          borderRadius: '6px',
-                          fontSize: '0.8rem',
-                          color: '#a78bfa',
-                          fontWeight: 500,
-                          transition: 'background 0.2s ease',
-                        }}>
-                          View Details
-                        </div>
-                      </div>
+                    <span className="collection-card__tag" style={{ background: accent }}>
+                      {product.category?.name ?? 'Tee'}
+                    </span>
+                  </Link>
+                  <button
+                    type="button"
+                    className={`collection-card__like ${product.isLiked ? 'collection-card__like--active' : ''}`}
+                    onClick={() => void toggleLike(product)}
+                    aria-label={product.isLiked ? `Remove ${product.name} from saved products` : `Save ${product.name}`}
+                  >
+                    <Heart size={18} fill={product.isLiked ? 'currentColor' : 'transparent'} />
+                    {product.likesCount ?? 0}
+                  </button>
+                  <div className="collection-card__body">
+                    <Link to={`/products/${product.id}`} className="collection-card__name">{product.name}</Link>
+                    <p className="collection-card__description">
+                      {product.description.length > 72 ? `${product.description.slice(0, 72)}...` : product.description}
+                    </p>
+                    <div className="collection-card__sizes" aria-label={`Available sizes for ${product.name}`}>
+                      {sizes.length > 0 ? sizes.map((variant) => (
+                        <Link
+                          key={variant.id}
+                          to={`/products/${product.id}?variant=${variant.id}`}
+                          className="collection-card__size"
+                        >
+                          {variant.size.name}
+                        </Link>
+                      )) : <span className="collection-card__size collection-card__size--disabled">No sizes</span>}
                     </div>
                   </div>
-                </Link>
+                </article>
               );
             })}
           </div>
         )}
 
-        {/* Pagination */}
         {totalPages > 1 && (
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '0.75rem',
-            marginTop: '3rem',
-            animation: 'fadeIn 0.5s ease-out',
-          }}>
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              style={{
-                padding: '0.6rem 1rem',
-                background: '#12122a',
-                color: '#e0e0e0',
-                border: '1px solid #1e1e3a',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                fontSize: '0.9rem',
-                transition: 'all 0.2s ease',
-              }}
-            >
+          <div className="collection-page__pagination">
+            <button onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1} aria-label="Previous page">
               <ChevronLeft size={18} />
-              Previous
             </button>
-
-            <div style={{
-              display: 'flex',
-              gap: '0.25rem',
-            }}>
-              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = i + 1;
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPage(pageNum)}
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: '10px',
-                      border: pageNum === page ? 'none' : '1px solid #1e1e3a',
-                      background: pageNum === page
-                        ? 'linear-gradient(135deg, #6c5ce7, #5a4bd1)'
-                        : '#12122a',
-                      color: pageNum === page ? 'white' : '#888',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem',
-                      fontWeight: pageNum === page ? 600 : 400,
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              style={{
-                padding: '0.6rem 1rem',
-                background: '#12122a',
-                color: '#e0e0e0',
-                border: '1px solid #1e1e3a',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                fontSize: '0.9rem',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              Next
+            <span>Page {page} of {totalPages}</span>
+            <button onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page === totalPages} aria-label="Next page">
               <ChevronRight size={18} />
             </button>
           </div>
         )}
-      </div>
-    </div>
+      </section>
+    </main>
   );
 }

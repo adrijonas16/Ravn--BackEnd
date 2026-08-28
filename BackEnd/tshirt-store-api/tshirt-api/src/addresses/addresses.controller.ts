@@ -50,7 +50,11 @@ export class AddressesController {
     @Param('addressId', ParseIntPipe) addressId: number,
     @Body() dto: UpdateAddressDto,
   ) {
-    return this.addressesService.update(user.id, addressId, dto);
+    return this.addressesService.update({
+      userId: user.id,
+      addressId,
+      dto,
+    });
   }
 
   @Delete(':addressId')

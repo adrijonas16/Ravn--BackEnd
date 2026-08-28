@@ -7,12 +7,32 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Get,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { LikesService } from './likes.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
+import { ListLikedProductsQueryDto } from './dto/list-liked-products-query.dto';
+
+@ApiTags('Likes')
+@Controller('likes')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+export class LikedProductsController {
+  constructor(private likesService: LikesService) {}
+
+  @Get('products')
+  @ApiOperation({ summary: 'List products liked by the current user' })
+  findLikedProducts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListLikedProductsQueryDto,
+  ) {
+    return this.likesService.findLikedProducts(user.id, query);
+  }
+}
 
 @ApiTags('Likes')
 @Controller('products/:productId/like')

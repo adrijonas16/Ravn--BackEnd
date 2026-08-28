@@ -2,7 +2,9 @@ import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
+
+const LOW_STOCK_THRESHOLD = 3;
 
 // ─── WEBHOOKS: Stripe nos AVISA cuando algo pasa (pago exitoso, fallido, reembolso, etc.) ───
 // Flujo: Usuario paga → Stripe procesa → Stripe envía POST a nuestro endpoint → Este servicio lo maneja
@@ -71,15 +73,20 @@ export class WebhooksService {
       switch (event.type) {
         // Flujo 1: PaymentIntent exitoso (cuando el frontend confirma el pago con Stripe Elements)
         case 'payment_intent.succeeded':
-          await this.handlePaymentIntentSucceeded(
-            event.data.object as Stripe.PaymentIntent,
-          );
+          await this.handlePaymentIntentSucceeded(event.data.object);
           break;
         // Flujo 2: Checkout Session completada (cuando el usuario paga via Payment Link)
         case 'checkout.session.completed':
-          await this.handleCheckoutSessionCompleted(
-            event.data.object as Stripe.Checkout.Session,
-          );
+          await this.handleCheckoutSessionCompleted(event.data.object);
+          break;
+        case 'payment_intent.payment_failed':
+          await this.handlePaymentIntentFailed(event.data.object);
+          break;
+        case 'checkout.session.async_payment_failed':
+          await this.handleCheckoutSessionPaymentFailed(event.data.object);
+          break;
+        case 'checkout.session.expired':
+          await this.handleCheckoutSessionExpired(event.data.object);
           break;
       }
 
@@ -110,6 +117,19 @@ export class WebhooksService {
     await this.processPaymentSuccess(orderId, pi.id);
   }
 
+  private async handlePaymentIntentFailed(pi: Stripe.PaymentIntent) {
+    const orderId = parseInt(pi.metadata.orderId, 10);
+    if (!orderId) return;
+
+    await this.processPaymentFailure(
+      orderId,
+      pi.id,
+      PaymentStatus.failed,
+      false,
+      'Stripe payment intent failed',
+    );
+  }
+
   // Maneja el evento de Checkout Session completada — mismo flujo, diferente fuente
   private async handleCheckoutSessionCompleted(
     session: Stripe.Checkout.Session,
@@ -120,18 +140,62 @@ export class WebhooksService {
     await this.processPaymentSuccess(orderId, session.id);
   }
 
+  private async handleCheckoutSessionPaymentFailed(
+    session: Stripe.Checkout.Session,
+  ) {
+    const orderId = parseInt(session.metadata?.orderId ?? '', 10);
+    if (!orderId) return;
+
+    await this.processPaymentFailure(
+      orderId,
+      session.id,
+      PaymentStatus.failed,
+      false,
+      'Stripe checkout payment failed',
+    );
+  }
+
+  private async handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
+    const orderId = parseInt(session.metadata?.orderId ?? '', 10);
+    if (!orderId) return;
+
+    await this.processPaymentFailure(
+      orderId,
+      session.id,
+      PaymentStatus.cancelled,
+      true,
+      'Stripe checkout session expired',
+    );
+  }
+
   // Lógica compartida: actualizar orden, pago, stock e inventario tras un pago exitoso
-  private async processPaymentSuccess(orderId: number, providerPaymentId: string) {
+  private async processPaymentSuccess(
+    orderId: number,
+    providerPaymentId: string,
+  ) {
     // $transaction: ejecuta todo dentro de una transacción de BD
     // Si cualquier operación falla, TODAS se revierten (atomicidad)
     // Esto evita inconsistencias como: orden marcada como pagada pero stock sin descontar
     await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        include: { items: true },
+        include: { items: { include: { productVariant: true } } },
       });
       // Solo procesa si la orden existe y está en estado "pending"
       if (!order || order.currentStatus !== OrderStatus.pending) return;
+
+      const outOfStockItem = order.items.find(
+        (item) => item.productVariant.stock < item.quantity,
+      );
+      if (outOfStockItem) {
+        await tx.payment.updateMany({
+          where: { orderId, providerPaymentId },
+          data: { status: PaymentStatus.failed },
+        });
+        throw new BadRequestException(
+          `Insufficient stock for ${outOfStockItem.skuCode}`,
+        );
+      }
 
       // Cambia el estado de la orden de "pending" a "paid"
       await tx.order.update({
@@ -151,22 +215,27 @@ export class WebhooksService {
       // Marca el pago como exitoso con la fecha actual
       await tx.payment.updateMany({
         where: { orderId, providerPaymentId },
-        data: { status: 'succeeded', paidAt: new Date() },
+        data: { status: PaymentStatus.succeeded, paidAt: new Date() },
+      });
+
+      const managers = await tx.user.findMany({
+        where: { role: { name: 'manager' }, status: 'active' },
+        select: { id: true, email: true },
       });
 
       // Por cada item de la orden: descuenta stock y registra el movimiento de inventario
       for (const item of order.items) {
         // decrement: operación atómica de Prisma — resta la cantidad directamente en la BD
         // Más seguro que leer → restar → guardar (evita race conditions)
-        const sku = await tx.productSku.update({
-          where: { id: item.productSkuId },
+        const sku = await tx.productVariant.update({
+          where: { id: item.productVariantId },
           data: { stock: { decrement: item.quantity } },
         });
 
         // Registra el movimiento de inventario para trazabilidad
         await tx.inventoryMovement.create({
           data: {
-            productSkuId: item.productSkuId,
+            productVariantId: item.productVariantId,
             orderId,
             movementType: 'sale',
             quantityChange: -item.quantity,
@@ -176,13 +245,74 @@ export class WebhooksService {
 
         // Alerta de stock bajo: se activa cuando el stock CRUZA el umbral de 3
         // La condición verifica que ANTES tenía más de 3 y AHORA tiene 3 o menos
-        if (sku.stock <= 3 && sku.stock + item.quantity > 3) {
+        if (
+          sku.stock <= LOW_STOCK_THRESHOLD &&
+          sku.stock + item.quantity > LOW_STOCK_THRESHOLD
+        ) {
           this.logger.log(
-            `Low stock alert: SKU ${item.productSkuId} now at ${sku.stock}`,
+            `Low stock alert: SKU ${item.productVariantId} now at ${sku.stock}`,
           );
-          // TODO: enviar a cola de notificaciones BullMQ (email, Slack, etc.)
+          if (managers.length > 0) {
+            await tx.notification.createMany({
+              data: managers.map((manager) => ({
+                userId: manager.id,
+                productId: item.productVariant.productId,
+                productVariantId: item.productVariantId,
+                type: 'low_stock',
+                recipientEmail: manager.email,
+              })),
+            });
+          }
         }
       }
+    });
+  }
+
+  private async processPaymentFailure(
+    orderId: number,
+    providerPaymentId: string,
+    status: PaymentStatus,
+    cancelOrder: boolean,
+    reason: string,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { user: { select: { id: true, email: true } } },
+      });
+      if (!order || order.currentStatus !== OrderStatus.pending) return;
+
+      await tx.payment.updateMany({
+        where: { orderId, providerPaymentId },
+        data: { status },
+      });
+
+      if (!cancelOrder) return;
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          currentStatus: OrderStatus.cancelled,
+          cancelledAt: new Date(),
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: OrderStatus.pending,
+          toStatus: OrderStatus.cancelled,
+          reason,
+        },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: order.user.id,
+          type: 'order_cancelled',
+          recipientEmail: order.user.email,
+        },
+      });
     });
   }
 }

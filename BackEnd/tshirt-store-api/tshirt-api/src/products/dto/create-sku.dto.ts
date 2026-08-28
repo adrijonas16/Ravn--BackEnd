@@ -1,7 +1,7 @@
 import { IsString, IsInt, IsNumber, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export class CreateSkuDto {
+export class CreateProductVariantDto {
   @ApiProperty({ example: 1 })
   @IsInt()
   sizeId: number;

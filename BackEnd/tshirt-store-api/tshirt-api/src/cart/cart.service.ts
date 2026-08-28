@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
-import { UpdateCartItemDto } from './dto/update-cart-item.dto';
+import { UpdateCartItemCommandDto } from './dto/update-cart-item-command.dto';
 
 @Injectable()
 export class CartService {
@@ -20,9 +20,11 @@ export class CartService {
       include: {
         items: {
           include: {
-            productSku: {
+            productVariant: {
               include: {
-                product: { include: { images: { where: { isPrimary: true }, take: 1 } } },
+                product: {
+                  include: { images: { where: { isPrimary: true }, take: 1 } },
+                },
                 size: true,
                 color: true,
               },
@@ -39,9 +41,13 @@ export class CartService {
         include: {
           items: {
             include: {
-              productSku: {
+              productVariant: {
                 include: {
-                  product: { include: { images: { where: { isPrimary: true }, take: 1 } } },
+                  product: {
+                    include: {
+                      images: { where: { isPrimary: true }, take: 1 },
+                    },
+                  },
                   size: true,
                   color: true,
                 },
@@ -59,8 +65,8 @@ export class CartService {
   // Agrega un item al carrito (o incrementa cantidad si ya existe ese SKU)
   async addItem(userId: number, dto: AddCartItemDto) {
     // Valida que el SKU exista, esté activo y el producto no esté eliminado
-    const sku = await this.prisma.productSku.findUnique({
-      where: { id: dto.productSkuId },
+    const sku = await this.prisma.productVariant.findUnique({
+      where: { id: dto.productVariantId },
       include: { product: true },
     });
     if (!sku || !sku.isActive || sku.product.deletedAt) {
@@ -75,9 +81,14 @@ export class CartService {
 
     const cart = await this.ensureActiveCart(userId);
 
-    // Índice compuesto cartId+productSkuId: un SKU solo aparece una vez por carrito
+    // Índice compuesto cartId+productVariantId: un SKU solo aparece una vez por carrito
     const existingItem = await this.prisma.cartItem.findUnique({
-      where: { cartId_productSkuId: { cartId: cart.id, productSkuId: dto.productSkuId } },
+      where: {
+        cartId_productVariantId: {
+          cartId: cart.id,
+          productVariantId: dto.productVariantId,
+        },
+      },
     });
 
     if (existingItem) {
@@ -95,7 +106,11 @@ export class CartService {
     } else {
       // Si no existe, crea un nuevo item en el carrito
       await this.prisma.cartItem.create({
-        data: { cartId: cart.id, productSkuId: dto.productSkuId, quantity: dto.quantity },
+        data: {
+          cartId: cart.id,
+          productVariantId: dto.productVariantId,
+          quantity: dto.quantity,
+        },
       });
     }
 
@@ -104,18 +119,19 @@ export class CartService {
   }
 
   // Actualiza la cantidad de un item (reemplaza, no suma)
-  async updateItem(userId: number, itemId: number, dto: UpdateCartItemDto) {
+  async updateItem(command: UpdateCartItemCommandDto) {
+    const { userId, itemId, dto } = command;
     const cart = await this.ensureActiveCart(userId);
     // Busca el item verificando que pertenezca al carrito del usuario (seguridad)
     const item = await this.prisma.cartItem.findFirst({
       where: { id: itemId, cartId: cart.id },
-      include: { productSku: true },
+      include: { productVariant: true },
     });
     if (!item) throw new NotFoundException('Cart item not found');
 
-    if (dto.quantity > item.productSku.stock) {
+    if (dto.quantity > item.productVariant.stock) {
       throw new BadRequestException(
-        `Insufficient stock (available: ${item.productSku.stock})`,
+        `Insufficient stock (available: ${item.productVariant.stock})`,
       );
     }
 
@@ -154,15 +170,15 @@ export class CartService {
   private formatCart(cart: any) {
     const items = cart.items.map((item: any) => ({
       id: item.id,
-      productSkuId: item.productSkuId,
-      productName: item.productSku.product.name,
-      skuCode: item.productSku.sku,
-      sizeName: item.productSku.size.name,
-      colorName: item.productSku.color.name,
-      imageUrl: item.productSku.product.images[0]?.publicUrl ?? null,
-      unitPrice: Number(item.productSku.price),
+      productVariantId: item.productVariantId,
+      productName: item.productVariant.product.name,
+      skuCode: item.productVariant.sku,
+      sizeName: item.productVariant.size.name,
+      colorName: item.productVariant.color.name,
+      imageUrl: item.productVariant.product.images[0]?.publicUrl ?? null,
+      unitPrice: Number(item.productVariant.price),
       quantity: item.quantity,
-      lineTotal: Number(item.productSku.price) * item.quantity,
+      lineTotal: Number(item.productVariant.price) * item.quantity,
     }));
 
     return {

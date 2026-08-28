@@ -11,6 +11,9 @@ export const ordersApi = {
   get: (id: number) =>
     api.get(`/orders/${id}`),
 
+  updateStatus: (id: number, status: string, reason?: string) =>
+    api.patch(`/orders/${id}/status`, { status, reason }),
+
   cancel: (id: number, reason?: string) =>
     api.post(`/orders/${id}/cancel`, { reason }),
 };

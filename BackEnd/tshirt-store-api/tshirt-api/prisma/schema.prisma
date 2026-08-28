@@ -93,6 +93,7 @@ model User {
 
   role                  Role                  @relation(fields: [roleId], references: [id])
   passwordResetTokens   PasswordResetToken[]
+  refreshTokens         RefreshToken[]
   productLikes          ProductLike[]
   carts                 Cart[]
   addresses             Address[]
@@ -107,6 +108,21 @@ model User {
   @@index([roleId])
   @@index([status])
   @@map("users")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
 }
 
 model PasswordResetToken {
@@ -148,7 +164,7 @@ model Product {
 
   category      Category       @relation(fields: [categoryId], references: [id])
   images        ProductImage[]
-  skus          ProductSku[]
+  variants      ProductVariant[]
   likes         ProductLike[]
   notifications Notification[]
 
@@ -178,7 +194,7 @@ model Size {
   id        Int          @id @default(autoincrement())
   name      String       @unique @db.VarChar(30)
   sortOrder Int          @default(0) @map("sort_order")
-  skus      ProductSku[]
+  variants  ProductVariant[]
 
   @@map("sizes")
 }
@@ -187,12 +203,12 @@ model Color {
   id      Int          @id @default(autoincrement())
   name    String       @unique @db.VarChar(50)
   hexCode String?      @map("hex_code") @db.VarChar(7)
-  skus    ProductSku[]
+  variants ProductVariant[]
 
   @@map("colors")
 }
 
-model ProductSku {
+model ProductVariant {
   id        Int      @id @default(autoincrement())
   productId Int      @map("product_id")
   sizeId    Int      @map("size_id")
@@ -215,7 +231,7 @@ model ProductSku {
   @@unique([productId, sizeId, colorId])
   @@index([productId, isActive])
   @@index([stock])
-  @@map("product_skus")
+  @@map("product_variants")
 }
 
 model ProductLike {
@@ -249,16 +265,16 @@ model Cart {
 model CartItem {
   id           Int      @id @default(autoincrement())
   cartId       Int      @map("cart_id")
-  productSkuId Int      @map("product_sku_id")
+  productVariantId Int      @map("product_variant_id")
   quantity     Int
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
 
   cart       Cart       @relation(fields: [cartId], references: [id])
-  productSku ProductSku @relation(fields: [productSkuId], references: [id])
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
 
-  @@unique([cartId, productSkuId])
-  @@index([productSkuId])
+  @@unique([cartId, productVariantId])
+  @@index([productVariantId])
   @@map("cart_items")
 }
 
@@ -353,7 +369,7 @@ model Order {
 model OrderItem {
   id           Int     @id @default(autoincrement())
   orderId      Int     @map("order_id")
-  productSkuId Int     @map("product_sku_id")
+  productVariantId Int     @map("product_variant_id")
   productName  String  @map("product_name") @db.VarChar(150)
   skuCode      String  @map("sku_code") @db.VarChar(80)
   sizeName     String  @map("size_name") @db.VarChar(30)
@@ -364,10 +380,10 @@ model OrderItem {
   lineTotal    Decimal @map("line_total") @db.Decimal(12, 2)
 
   order      Order      @relation(fields: [orderId], references: [id])
-  productSku ProductSku @relation(fields: [productSkuId], references: [id])
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
 
-  @@unique([orderId, productSkuId])
-  @@index([productSkuId])
+  @@unique([orderId, productVariantId])
+  @@index([productVariantId])
   @@map("order_items")
 }
 
@@ -423,7 +439,7 @@ model StripeWebhookEvent {
 
 model InventoryMovement {
   id              Int                   @id @default(autoincrement())
-  productSkuId    Int                   @map("product_sku_id")
+  productVariantId    Int                   @map("product_variant_id")
   orderId         Int?                  @map("order_id")
   movementType    InventoryMovementType @map("movement_type")
   quantityChange  Int                   @map("quantity_change")
@@ -431,11 +447,11 @@ model InventoryMovement {
   createdByUserId Int?                  @map("created_by_user_id")
   createdAt       DateTime              @default(now()) @map("created_at")
 
-  productSku ProductSku @relation(fields: [productSkuId], references: [id])
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
   order      Order?     @relation(fields: [orderId], references: [id])
   createdBy  User?      @relation(fields: [createdByUserId], references: [id])
 
-  @@index([productSkuId, createdAt])
+  @@index([productVariantId, createdAt])
   @@index([orderId])
   @@map("inventory_movements")
 }
@@ -461,7 +477,7 @@ model Notification {
   id             Int                @id @default(autoincrement())
   userId         Int                @map("user_id")
   productId      Int?               @map("product_id")
-  productSkuId   Int?               @map("product_sku_id")
+  productVariantId   Int?               @map("product_variant_id")
   type           String             @db.VarChar(60)
   recipientEmail String             @map("recipient_email") @db.VarChar(255)
   status         NotificationStatus @default(pending)
@@ -472,10 +488,10 @@ model Notification {
 
   user       User        @relation(fields: [userId], references: [id])
   product    Product?    @relation(fields: [productId], references: [id])
-  productSku ProductSku? @relation(fields: [productSkuId], references: [id])
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
 
   @@index([status, createdAt])
   @@index([userId, type, createdAt])
-  @@index([productSkuId, type])
+  @@index([productVariantId, type])
   @@map("notifications")
 }

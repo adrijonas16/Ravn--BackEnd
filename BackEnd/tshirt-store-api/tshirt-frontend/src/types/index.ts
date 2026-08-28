@@ -5,12 +5,28 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
+  phone?: string | null;
   role: 'manager' | 'client' | 'delivery_person';
 }
 
 export interface AuthResponse {
   accessToken: string;
+  refreshToken: string;
   user: User;
+}
+
+export interface PromoCode {
+  id: number;
+  code: string;
+  discountType: 'percentage' | 'fixed_amount';
+  discountValue: number;
+  expiresAt: string;
+  usageLimit: number;
+  usageCount: number;
+  minimumPurchaseAmount: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CurrentUserResponse {
@@ -24,22 +40,35 @@ export interface Category {
   description?: string;
 }
 
+export interface Size {
+  id: number;
+  name: string;
+  sortOrder: number;
+}
+
+export interface Color {
+  id: number;
+  name: string;
+  hexCode?: string | null;
+}
+
 export interface ProductImage {
   id: number;
+  storageKey?: string;
   publicUrl: string;
-  altText?: string;
+  altText?: string | null;
   sortOrder: number;
   isPrimary: boolean;
 }
 
-export interface Sku {
+export interface ProductVariant {
   id: number;
   sku: string;
   price: number | string;
   stock: number;
   isActive: boolean;
-  size: { id: number; name: string };
-  color: { id: number; name: string; hexCode?: string };
+  size: Size;
+  color: Color;
 }
 
 export interface Product {
@@ -50,6 +79,8 @@ export interface Product {
   status: 'active' | 'disabled';
   category: Category;
   primaryImage?: string | null;
+  images?: ProductImage[];
+  variants?: ProductVariant[];
   likesCount?: number;
   isLiked?: boolean;
   createdAt: string;
@@ -57,13 +88,13 @@ export interface Product {
 
 export interface ProductDetail extends Product {
   images: ProductImage[];
-  skus: Sku[];
+  variants: ProductVariant[];
   _count?: { likes: number };
 }
 
 export interface CartItem {
   id: number;
-  productSkuId: number;
+  productVariantId: number;
   productName: string;
   skuCode: string;
   sizeName: string;
@@ -80,6 +111,20 @@ export interface Cart {
   totalAmount: number;
 }
 
+export interface Address {
+  id: number;
+  label?: string | null;
+  recipientName: string;
+  recipientPhone: string;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  stateRegion?: string | null;
+  postalCode?: string | null;
+  countryCode: string;
+  isDefault: boolean;
+}
+
 export interface OrderSummary {
   id: number;
   orderNumber: string;
@@ -88,6 +133,31 @@ export interface OrderSummary {
   discountAmount: number;
   totalAmount: number;
   paymentMethod: string | null;
+  customer?: {
+    id: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+    phone?: string | null;
+  };
+  deliveryPerson?: {
+    id: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+    phone?: string | null;
+  } | null;
+  shippingAddress?: {
+    recipientName: string;
+    recipientPhone: string;
+    line1: string;
+    line2?: string | null;
+    city: string;
+    stateRegion?: string | null;
+    postalCode?: string | null;
+    countryCode: string;
+  };
+  items?: CartItem[];
   createdAt: string;
 }
 

@@ -34,10 +34,7 @@ export class CartController {
 
   @Post('items')
   @ApiOperation({ summary: 'Add item to cart' })
-  addItem(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: AddCartItemDto,
-  ) {
+  addItem(@CurrentUser() user: AuthenticatedUser, @Body() dto: AddCartItemDto) {
     return this.cartService.addItem(user.id, dto);
   }
 
@@ -48,7 +45,11 @@ export class CartController {
     @Param('itemId', ParseIntPipe) itemId: number,
     @Body() dto: UpdateCartItemDto,
   ) {
-    return this.cartService.updateItem(user.id, itemId, dto);
+    return this.cartService.updateItem({
+      userId: user.id,
+      itemId,
+      dto,
+    });
   }
 
   @Delete('items/:itemId')

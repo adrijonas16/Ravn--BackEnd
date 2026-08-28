@@ -9,19 +9,25 @@ async function main() {
   // ─── Roles ───
   const manager = await prisma.role.upsert({ where: { name: 'manager' }, update: {}, create: { name: 'manager' } });
   const client = await prisma.role.upsert({ where: { name: 'client' }, update: {}, create: { name: 'client' } });
-  await prisma.role.upsert({ where: { name: 'delivery_person' }, update: {}, create: { name: 'delivery_person' } });
+  const delivery = await prisma.role.upsert({ where: { name: 'delivery_person' }, update: {}, create: { name: 'delivery_person' } });
 
   // ─── Users ───
-  const passwordHash = await bcrypt.hash('Admin123!', 10);
+  const adminPasswordHash = await bcrypt.hash('Admin123!', 10);
   await prisma.user.upsert({
     where: { email: 'admin@tshirtstore.com' },
-    update: {},
-    create: { email: 'admin@tshirtstore.com', passwordHash, firstName: 'Admin', lastName: 'Manager', roleId: manager.id },
+    update: { passwordHash: adminPasswordHash, firstName: 'Admin', lastName: 'Manager', roleId: manager.id, status: 'active' },
+    create: { email: 'admin@tshirtstore.com', passwordHash: adminPasswordHash, firstName: 'Admin', lastName: 'Manager', roleId: manager.id },
   });
+  const clientPasswordHash = await bcrypt.hash('Demo1234!', 10);
   const clientUser = await prisma.user.upsert({
     where: { email: 'demo@tshirtstore.com' },
-    update: {},
-    create: { email: 'demo@tshirtstore.com', passwordHash: await bcrypt.hash('Demo1234!', 10), firstName: 'Demo', lastName: 'User', roleId: client.id },
+    update: { passwordHash: clientPasswordHash, firstName: 'Demo', lastName: 'User', roleId: client.id, status: 'active' },
+    create: { email: 'demo@tshirtstore.com', passwordHash: clientPasswordHash, firstName: 'Demo', lastName: 'User', roleId: client.id },
+  });
+  await prisma.user.upsert({
+    where: { email: 'delivery@tshirtstore.com' },
+    update: { passwordHash: await bcrypt.hash('Delivery123!', 10), firstName: 'Delivery', lastName: 'Person', roleId: delivery.id, status: 'active' },
+    create: { email: 'delivery@tshirtstore.com', passwordHash: await bcrypt.hash('Delivery123!', 10), firstName: 'Delivery', lastName: 'Person', roleId: delivery.id },
   });
 
   // ─── Categories ───
@@ -74,18 +80,126 @@ async function main() {
     { name: 'Trail Runner Tee', slug: 'trail-runner-tee', desc: 'Ultraligera y transpirable. Diseñada para trail running y actividades outdoor.', cat: 4, price: 42.99, emoji: '🏔️' },
   ];
 
-  for (const p of products) {
-    const existing = await prisma.product.findUnique({ where: { slug: p.slug } });
-    if (existing) continue;
+  const productPhotoPairs = [
+    {
+      front: 'https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1523398002811-999ca8dec234?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1520975954732-35dd22299614?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1554568218-0f1715e72254?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1485462537746-965f33f7f6a7?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1506629905607-d405d7d3b0d2?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1520367445093-50dc08a59d9d?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1507680434567-5739c80be1ac?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1520975867597-0af37a22e31e?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1520975916090-3105956dac38?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1516826957135-700dedea698c?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1503342394128-c104d54dba01?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1520975682031-a06d8fe11030?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1542060748-10c28b62716f?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1517466787929-bc90951d0974?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1518459031867-a89b944bffe4?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=900&q=85',
+    },
+    {
+      front: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=85',
+      back: 'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=900&q=85',
+    },
+  ];
 
-    const product = await prisma.product.create({
-      data: {
+  for (const [index, p] of products.entries()) {
+    const product = await prisma.product.upsert({
+      where: { slug: p.slug },
+      update: {
+        name: p.name,
+        description: p.desc,
+        categoryId: categories[p.cat].id,
+        status: 'active',
+      },
+      create: {
         name: p.name,
         slug: p.slug,
         description: p.desc,
         categoryId: categories[p.cat].id,
       },
     });
+
+    const imageBase = p.slug.replaceAll('-', '_');
+    const photos = productPhotoPairs[index % productPhotoPairs.length];
+    const productImages = [
+      {
+        storageKey: `seed/${imageBase}/front`,
+        publicUrl: `${photos.front}&sig=${product.id}-front`,
+        altText: `${p.name} front`,
+        sortOrder: 0,
+        isPrimary: true,
+      },
+      {
+        storageKey: `seed/${imageBase}/back`,
+        publicUrl: `${photos.back}&sig=${product.id}-back`,
+        altText: `${p.name} alternate`,
+        sortOrder: 1,
+        isPrimary: false,
+      },
+    ];
+
+    for (const image of productImages) {
+      await prisma.productImage.upsert({
+        where: { storageKey: image.storageKey },
+        update: {
+          productId: product.id,
+          publicUrl: image.publicUrl,
+          altText: image.altText,
+          sortOrder: image.sortOrder,
+          isPrimary: image.isPrimary,
+        },
+        create: {
+          productId: product.id,
+          ...image,
+        },
+      });
+    }
+
+    const existingVariantCount = await prisma.productVariant.count({
+      where: { productId: product.id },
+    });
+    if (existingVariantCount > 0) continue;
 
     // Crear SKUs: 4 tallas x 3 colores = 12 variantes por producto
     const productColors = [colors[0], colors[1], colors[2], colors[3]].slice(0, 3 + Math.floor(Math.random() * 2));
@@ -94,7 +208,7 @@ async function main() {
     for (const size of productSizes) {
       for (const color of productColors) {
         const skuCode = `${p.slug.toUpperCase()}-${color.name.toUpperCase()}-${size.name}`;
-        await prisma.productSku.create({
+        await prisma.productVariant.create({
           data: {
             productId: product.id,
             sizeId: size.id,
@@ -129,6 +243,7 @@ async function main() {
   console.log('Seed complete! 15 products with SKUs created.');
   console.log('Manager login: admin@tshirtstore.com / Admin123!');
   console.log('Client login:  demo@tshirtstore.com / Demo1234!');
+  console.log('Delivery login: delivery@tshirtstore.com / Delivery123!');
 }
 
 main()

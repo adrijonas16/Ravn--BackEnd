@@ -19,6 +19,7 @@ import { PromoCodesModule } from './promo-codes/promo-codes.module';
 import { DeliveryModule } from './delivery/delivery.module';
 // WebhooksModule: recibe notificaciones de Stripe cuando un pago se completa
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 // Este es el MÓDULO RAÍZ — aquí se registran todos los módulos de la aplicación
 // NestJS construye un grafo de dependencias a partir de este módulo
@@ -42,6 +43,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     PromoCodesModule,
     DeliveryModule,
     WebhooksModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

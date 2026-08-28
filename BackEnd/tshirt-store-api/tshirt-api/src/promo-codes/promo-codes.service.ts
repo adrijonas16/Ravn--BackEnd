@@ -5,15 +5,16 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePromoCodeDto } from './dto/create-promo-code.dto';
+import { ListPromoCodesQueryDto } from './dto/list-promo-codes-query.dto';
 import { UpdatePromoCodeDto } from './dto/update-promo-code.dto';
 
 @Injectable()
 export class PromoCodesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(page = 1, limit = 20) {
-    page = Number(page) || 1;
-    limit = Number(limit) || 20;
+  async findAll(params: ListPromoCodesQueryDto) {
+    const page = Number(params.page) || 1;
+    const limit = Number(params.limit) || 20;
     const skip = (page - 1) * limit;
 
     const [data, totalItems] = await Promise.all([

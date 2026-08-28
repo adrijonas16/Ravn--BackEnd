@@ -4,8 +4,8 @@ import { Cart } from '../types';
 export const cartApi = {
   get: () => api.get<Cart>('/cart'),
 
-  addItem: (productSkuId: number, quantity: number) =>
-    api.post<Cart>('/cart/items', { productSkuId, quantity }),
+  addItem: (productVariantId: number, quantity: number) =>
+    api.post<Cart>('/cart/items', { productVariantId, quantity }),
 
   updateItem: (itemId: number, quantity: number) =>
     api.patch<Cart>(`/cart/items/${itemId}`, { quantity }),

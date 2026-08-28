@@ -8,12 +8,16 @@ import {
 import { ConfigService } from '@nestjs/config';
 // Stripe: SDK oficial de Stripe para procesar pagos con tarjeta de crédito
 import Stripe from 'stripe';
+import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+const LOW_STOCK_THRESHOLD = 3;
 
 @Injectable()
 export class PaymentsService {
   // Cliente de Stripe — se usa para crear pagos, sesiones de checkout, etc.
   private stripe: Stripe;
+  private stripeSecretKey: string;
 
   // Inyección de dependencias: NestJS automáticamente pasa PrismaService y ConfigService
   constructor(
@@ -22,9 +26,20 @@ export class PaymentsService {
   ) {
     // Inicializa el cliente de Stripe con la clave secreta del .env
     // STRIPE_SECRET_KEY empieza con "sk_test_" en desarrollo y "sk_live_" en producción
-    this.stripe = new Stripe(
-      this.config.get('STRIPE_SECRET_KEY', 'sk_test_placeholder'),
-      { apiVersion: '2025-05-28' as any },
+    this.stripeSecretKey = this.config.get(
+      'STRIPE_SECRET_KEY',
+      'sk_test_placeholder',
+    );
+    this.stripe = new Stripe(this.stripeSecretKey, {
+      apiVersion: '2025-05-28' as any,
+    });
+  }
+
+  private isStripeConfigured() {
+    return (
+      (this.stripeSecretKey.startsWith('sk_test_') ||
+        this.stripeSecretKey.startsWith('sk_live_')) &&
+      !this.stripeSecretKey.includes('placeholder')
     );
   }
 
@@ -41,6 +56,9 @@ export class PaymentsService {
       throw new ForbiddenException('Not the order owner');
     if (order.currentStatus !== 'pending')
       throw new BadRequestException('Order is not in pending status');
+    if (!this.isStripeConfigured()) {
+      throw new BadRequestException('Stripe is not configured');
+    }
 
     // Stripe trabaja en centavos: $19.99 → 1999 centavos
     const amount = Math.round(Number(order.totalAmount) * 100);
@@ -74,19 +92,116 @@ export class PaymentsService {
     };
   }
 
+  async createOrderPaymentLink(orderId: number, userId: number) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.userId !== userId)
+      throw new ForbiddenException('Not the order owner');
+    if (order.currentStatus !== OrderStatus.pending)
+      throw new BadRequestException('Order is not in pending status');
+
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: {
+        orderId,
+        method: 'payment_link',
+        status: 'pending',
+        providerPaymentLinkId: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existingPayment?.providerPaymentLinkId) {
+      return {
+        paymentLinkUrl: existingPayment.providerPaymentLinkId,
+        orderId: order.id,
+      };
+    }
+
+    const successUrl = this.config.get(
+      'STRIPE_SUCCESS_URL',
+      'http://localhost:5173/orders',
+    );
+    const cancelUrl = this.config.get(
+      'STRIPE_CANCEL_URL',
+      'http://localhost:5173/cart',
+    );
+
+    if (!this.isStripeConfigured()) {
+      const providerPaymentId = `demo_checkout_${order.id}_${Date.now()}`;
+      const paymentLinkUrl = `${successUrl}?orderId=${order.id}&demoCheckout=true`;
+
+      await this.prisma.payment.create({
+        data: {
+          orderId: order.id,
+          method: 'payment_link',
+          provider: 'stripe_demo',
+          providerPaymentId,
+          providerPaymentLinkId: paymentLinkUrl,
+          currency: order.currency,
+          amount: order.totalAmount,
+        },
+      });
+
+      await this.completeOrderPayment(order.id, providerPaymentId);
+
+      return { paymentLinkUrl, orderId: order.id, demo: true };
+    }
+
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: order.items.map((item) => ({
+        price_data: {
+          currency: order.currency.toLowerCase(),
+          product_data: {
+            name: `${item.productName} (${item.sizeName}/${item.colorName})`,
+          },
+          unit_amount: Math.round(Number(item.unitPrice) * 100),
+        },
+        quantity: item.quantity,
+      })),
+      metadata: { orderId: order.id.toString() },
+      success_url: `${successUrl}?orderId=${order.id}`,
+      cancel_url: cancelUrl,
+    });
+
+    if (!session.url) {
+      throw new BadRequestException('Stripe did not return a checkout URL');
+    }
+
+    await this.prisma.payment.create({
+      data: {
+        orderId: order.id,
+        method: 'payment_link',
+        provider: 'stripe',
+        providerPaymentId: session.id,
+        providerPaymentLinkId: session.url,
+        currency: order.currency,
+        amount: order.totalAmount,
+      },
+    });
+
+    return { paymentLinkUrl: session.url, orderId: order.id };
+  }
+
   // ─── FLUJO 2: Payment Link (Stripe Checkout — redirige al usuario a una página de Stripe) ───
   // Más simple: Stripe muestra su propia página de pago, no necesitas formulario propio
   async createPaymentLink(
     userId: number,
-    productSkuId: number,
+    productVariantId: number,
     quantity: number,
     addressId: number,
   ) {
     // Busca el SKU (variante específica: talla + color) con su producto, imágenes, talla y color
-    const sku = await this.prisma.productSku.findUnique({
-      where: { id: productSkuId },
+    const sku = await this.prisma.productVariant.findUnique({
+      where: { id: productVariantId },
       include: {
-        product: { include: { images: { where: { isPrimary: true }, take: 1 } } },
+        product: {
+          include: { images: { where: { isPrimary: true }, take: 1 } },
+        },
         size: true,
         color: true,
       },
@@ -101,6 +216,9 @@ export class PaymentsService {
       where: { id: addressId, userId },
     });
     if (!address) throw new NotFoundException('Address not found');
+    if (!this.isStripeConfigured()) {
+      throw new BadRequestException('Stripe is not configured');
+    }
 
     const unitPrice = Number(sku.price);
     const totalAmount = unitPrice * quantity;
@@ -125,7 +243,7 @@ export class PaymentsService {
         shippingCountryCode: address.countryCode,
         items: {
           create: {
-            productSkuId,
+            productVariantId,
             productName: sku.product.name,
             skuCode: sku.sku,
             sizeName: sku.size.name,
@@ -185,5 +303,85 @@ export class PaymentsService {
 
     // Retorna la URL de Stripe Checkout para que el frontend redirija al usuario
     return { paymentLinkUrl: session.url, orderId: order.id };
+  }
+
+  private async completeOrderPayment(
+    orderId: number,
+    providerPaymentId: string,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: { include: { productVariant: true } },
+          user: { select: { id: true, email: true } },
+        },
+      });
+      if (!order || order.currentStatus !== OrderStatus.pending) return;
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { currentStatus: OrderStatus.paid },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: OrderStatus.pending,
+          toStatus: OrderStatus.paid,
+        },
+      });
+
+      await tx.payment.updateMany({
+        where: { orderId, providerPaymentId },
+        data: { status: 'succeeded', paidAt: new Date() },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: order.user.id,
+          type: 'order_paid',
+          recipientEmail: order.user.email,
+        },
+      });
+
+      const managers = await tx.user.findMany({
+        where: { role: { name: 'manager' }, status: 'active' },
+        select: { id: true, email: true },
+      });
+
+      for (const item of order.items) {
+        const sku = await tx.productVariant.update({
+          where: { id: item.productVariantId },
+          data: { stock: { decrement: item.quantity } },
+        });
+
+        await tx.inventoryMovement.create({
+          data: {
+            productVariantId: item.productVariantId,
+            orderId,
+            movementType: 'sale',
+            quantityChange: -item.quantity,
+            stockAfter: sku.stock,
+          },
+        });
+
+        if (
+          sku.stock <= LOW_STOCK_THRESHOLD &&
+          sku.stock + item.quantity > LOW_STOCK_THRESHOLD &&
+          managers.length > 0
+        ) {
+          await tx.notification.createMany({
+            data: managers.map((manager) => ({
+              userId: manager.id,
+              productId: item.productVariant.productId,
+              productVariantId: item.productVariantId,
+              type: 'low_stock',
+              recipientEmail: manager.email,
+            })),
+          });
+        }
+      }
+    });
   }
 }

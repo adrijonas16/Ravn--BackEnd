@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
+import { UpdateAddressCommandDto } from './dto/update-address-command.dto';
 
 @Injectable()
 export class AddressesService {
@@ -31,7 +32,8 @@ export class AddressesService {
     });
   }
 
-  async update(userId: number, addressId: number, dto: UpdateAddressDto) {
+  async update(command: UpdateAddressCommandDto) {
+    const { userId, addressId, dto } = command;
     await this.ensureOwnAddress(userId, addressId);
     const data = this.normalize(dto);
 

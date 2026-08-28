@@ -18,20 +18,23 @@ describe('OrdersService', () => {
     prisma = {
       cart: { findFirst: jest.fn() },
       address: { findFirst: jest.fn() },
-      order: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), count: jest.fn() },
+      order: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        count: jest.fn(),
+      },
       promoCode: { findUnique: jest.fn() },
       promoCodeRedemption: { count: jest.fn(), create: jest.fn() },
       orderStatusHistory: { create: jest.fn() },
-      productSku: { update: jest.fn(), findUnique: jest.fn() },
+      productVariant: { update: jest.fn(), findUnique: jest.fn() },
       inventoryMovement: { create: jest.fn() },
       $transaction: jest.fn((fn) => fn(prisma)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        OrdersService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [OrdersService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get(OrdersService);
@@ -40,42 +43,71 @@ describe('OrdersService', () => {
   describe('create', () => {
     it('should throw BadRequestException if cart is empty', async () => {
       prisma.cart.findFirst.mockResolvedValue(null);
-      await expect(
-        service.create(1, { addressId: 1 }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if cart has no items', async () => {
       prisma.cart.findFirst.mockResolvedValue({ id: 1, items: [] });
-      await expect(
-        service.create(1, { addressId: 1 }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw NotFoundException if address not found', async () => {
       prisma.cart.findFirst.mockResolvedValue({
         id: 1,
-        items: [{ productSku: { stock: 10, price: 20, sku: 'A', product: { name: 'T', images: [] }, size: { name: 'M' }, color: { name: 'Red' } }, productSkuId: 1, quantity: 1 }],
+        items: [
+          {
+            productVariant: {
+              stock: 10,
+              price: 20,
+              sku: 'A',
+              product: { name: 'T', images: [] },
+              size: { name: 'M' },
+              color: { name: 'Red' },
+            },
+            productVariantId: 1,
+            quantity: 1,
+          },
+        ],
       });
       prisma.address.findFirst.mockResolvedValue(null);
-      await expect(
-        service.create(1, { addressId: 999 }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.create(1, { addressId: 999 })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw BadRequestException if stock insufficient', async () => {
       prisma.cart.findFirst.mockResolvedValue({
         id: 1,
-        items: [{
-          productSku: { stock: 0, price: 20, sku: 'A', product: { name: 'T', images: [] }, size: { name: 'M' }, color: { name: 'Red' } },
-          productSkuId: 1,
-          quantity: 5,
-        }],
+        items: [
+          {
+            productVariant: {
+              stock: 0,
+              price: 20,
+              sku: 'A',
+              product: { name: 'T', images: [] },
+              size: { name: 'M' },
+              color: { name: 'Red' },
+            },
+            productVariantId: 1,
+            quantity: 5,
+          },
+        ],
       });
-      prisma.address.findFirst.mockResolvedValue({ id: 1, recipientName: 'J', recipientPhone: '1', line1: 'st', city: 'c', countryCode: 'US' });
-      await expect(
-        service.create(1, { addressId: 1 }),
-      ).rejects.toThrow(BadRequestException);
+      prisma.address.findFirst.mockResolvedValue({
+        id: 1,
+        recipientName: 'J',
+        recipientPhone: '1',
+        line1: 'st',
+        city: 'c',
+        countryCode: 'US',
+      });
+      await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -107,7 +139,11 @@ describe('OrdersService', () => {
       prisma.order.findMany.mockResolvedValue([]);
       prisma.order.count.mockResolvedValue(0);
 
-      await service.findAll(clientUser, { page: 1, limit: 20, status: 'paid' as any });
+      await service.findAll(clientUser, {
+        page: 1,
+        limit: 20,
+        status: 'paid',
+      });
 
       expect(prisma.order.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -156,7 +192,11 @@ describe('OrdersService', () => {
     it('should throw NotFoundException for non-existent order', async () => {
       prisma.order.findUnique.mockResolvedValue(null);
       await expect(
-        service.updateStatus(999, 'processing' as any, managerUser),
+        service.updateStatus({
+          orderId: 999,
+          status: 'processing' as any,
+          user: managerUser,
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -166,7 +206,11 @@ describe('OrdersService', () => {
         currentStatus: 'pending',
       });
       await expect(
-        service.updateStatus(1, 'shipped' as any, managerUser),
+        service.updateStatus({
+          orderId: 1,
+          status: 'shipped' as any,
+          user: managerUser,
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -178,7 +222,11 @@ describe('OrdersService', () => {
         assignedDeliveryUserId: 3,
       });
       await expect(
-        service.updateStatus(1, 'processing' as any, deliveryUser),
+        service.updateStatus({
+          orderId: 1,
+          status: 'processing' as any,
+          user: deliveryUser,
+        }),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -191,7 +239,11 @@ describe('OrdersService', () => {
         currentStatus: 'shipped',
       });
       await expect(
-        service.cancelOrder(1, clientUser, 'changed mind'),
+        service.cancelOrder({
+          orderId: 1,
+          user: clientUser,
+          reason: 'changed mind',
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -202,7 +254,10 @@ describe('OrdersService', () => {
         currentStatus: 'pending',
       });
       await expect(
-        service.cancelOrder(1, clientUser),
+        service.cancelOrder({
+          orderId: 1,
+          user: clientUser,
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
   });

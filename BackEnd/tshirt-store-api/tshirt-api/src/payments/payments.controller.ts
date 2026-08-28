@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
+import { CreatePaymentLinkDto } from './dto/create-payment-link.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
@@ -28,19 +29,28 @@ export class PaymentsController {
     return this.paymentsService.createPaymentIntent(orderId, user.id);
   }
 
+  @Post('orders/:orderId/payment-link')
+  @ApiOperation({
+    summary: 'Create Stripe Checkout link for an existing order',
+  })
+  createOrderPaymentLink(
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.paymentsService.createOrderPaymentLink(orderId, user.id);
+  }
+
   @Post('payments/payment-link')
   @ApiOperation({ summary: 'Create Payment Link for single product purchase' })
   createPaymentLink(
     @CurrentUser() user: AuthenticatedUser,
-    @Body('productSkuId') productSkuId: number,
-    @Body('quantity') quantity: number,
-    @Body('addressId') addressId: number,
+    @Body() dto: CreatePaymentLinkDto,
   ) {
     return this.paymentsService.createPaymentLink(
       user.id,
-      productSkuId,
-      quantity,
-      addressId,
+      dto.productVariantId,
+      dto.quantity,
+      dto.addressId,
     );
   }
 }

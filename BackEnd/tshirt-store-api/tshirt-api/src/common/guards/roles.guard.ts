@@ -39,10 +39,13 @@ export class RolesGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     // Lee los roles requeridos que se definieron con @Roles() en el endpoint
     // getAllAndOverride: busca primero en el método, luego en la clase
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
-      context.getHandler(), // el método del controlador (ej: createProduct)
-      context.getClass(),   // la clase del controlador (ej: ProductsController)
-    ]);
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
+      ROLES_KEY,
+      [
+        context.getHandler(), // el método del controlador (ej: createProduct)
+        context.getClass(), // la clase del controlador (ej: ProductsController)
+      ],
+    );
 
     // Si no hay @Roles() definido, permite el acceso (no hay restricción de rol)
     if (!requiredRoles) return true;
