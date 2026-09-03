@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   Optional,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -14,6 +15,16 @@ import { CreateProductImageDto } from './dto/create-product-image.dto';
 import { UpdateProductImageCommandDto } from './dto/update-product-image-command.dto';
 import { CreateProductImageUploadDto } from './dto/create-product-image-upload.dto';
 import { StorageService } from '../storage/storage.service';
+
+interface ProductImageFileUpload {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+  altText?: string;
+  sortOrder?: number;
+  isPrimary?: boolean;
+  productVariantId?: number;
+}
 
 // @Injectable() marca esta clase para que NestJS pueda inyectarla en otros archivos
 @Injectable()
@@ -285,6 +296,37 @@ export class ProductsService {
     });
 
     return { image, upload };
+  }
+
+  async uploadImageFile(productId: number, file: ProductImageFileUpload) {
+    await this.findOne(productId);
+    await this.ensureProductVariantBelongsToProduct(
+      productId,
+      file.productVariantId,
+    );
+    if (!this.storageService) {
+      throw new ConflictException('Storage service is not available');
+    }
+    if (!file.mimetype.startsWith('image/')) {
+      throw new BadRequestException('Only image uploads are allowed');
+    }
+
+    const uploadedImage = await this.storageService.uploadProductImage(
+      productId,
+      file.originalname,
+      file.mimetype,
+      file.buffer,
+      file.productVariantId,
+    );
+
+    return this.addImage(productId, {
+      publicUrl: uploadedImage.publicUrl,
+      storageKey: uploadedImage.storageKey,
+      altText: file.altText,
+      sortOrder: file.sortOrder,
+      isPrimary: file.isPrimary,
+      productVariantId: file.productVariantId,
+    });
   }
 
   async updateImage(command: UpdateProductImageCommandDto) {

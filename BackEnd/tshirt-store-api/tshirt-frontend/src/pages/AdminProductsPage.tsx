@@ -711,25 +711,13 @@ export default function AdminProductsPage() {
     try {
       const payload = normalizeImageForm(imageForm);
       if (imageUploadFile) {
-        const contentType = imageUploadFile.type || 'application/octet-stream';
-        const { data } = await productsApi.createImageUpload(selectedProductId, {
-          filename: imageUploadFile.name,
-          contentType,
+        await productsApi.uploadImage(selectedProductId, {
+          file: imageUploadFile,
           altText: payload.altText,
           sortOrder: payload.sortOrder,
           isPrimary: payload.isPrimary,
           productVariantId: payload.productVariantId,
         });
-        const uploadResponse = await fetch(data.upload.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': contentType },
-          body: imageUploadFile,
-        });
-
-        if (!uploadResponse.ok) {
-          await productsApi.removeImage(selectedProductId, data.image.id);
-          throw new Error('Image upload failed.');
-        }
       } else {
         await productsApi.addImage(selectedProductId, payload);
       }

@@ -48,6 +48,35 @@ export class StorageService {
     };
   }
 
+  async uploadProductImage(
+    productId: number,
+    filename: string,
+    contentType: string,
+    body: Buffer,
+    productVariantId?: number,
+  ) {
+    const bucket = this.getBucket();
+    const storageKey = this.buildProductImageKey(
+      productId,
+      filename,
+      productVariantId,
+    );
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: storageKey,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
+
+    return {
+      storageKey,
+      publicUrl: this.buildPublicUrl(bucket, storageKey),
+    };
+  }
+
   private getBucket() {
     const bucket = this.config.get<string>('AWS_S3_BUCKET');
     if (!bucket) {

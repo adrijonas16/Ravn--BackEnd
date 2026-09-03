@@ -45,6 +45,14 @@ export interface ProductImageUploadResponse {
   };
 }
 
+export interface ProductImageFileUploadPayload {
+  file: File;
+  altText?: string;
+  sortOrder?: number;
+  isPrimary?: boolean;
+  productVariantId?: number;
+}
+
 export const productsApi = {
   list: (params?: { page?: number; limit?: number; categoryId?: number; search?: string }) =>
     api.get<PaginatedResponse<Product>>('/products', { params }),
@@ -84,6 +92,21 @@ export const productsApi = {
 
   createImageUpload: (productId: number, data: ProductImageUploadPayload) =>
     api.post<ProductImageUploadResponse>(`/products/${productId}/images/upload-url`, data),
+
+  uploadImage: (productId: number, data: ProductImageFileUploadPayload) => {
+    const formData = new FormData();
+    formData.append('file', data.file);
+    if (data.altText) formData.append('altText', data.altText);
+    if (data.sortOrder !== undefined) formData.append('sortOrder', String(data.sortOrder));
+    if (data.isPrimary !== undefined) formData.append('isPrimary', String(data.isPrimary));
+    if (data.productVariantId !== undefined) {
+      formData.append('productVariantId', String(data.productVariantId));
+    }
+
+    return api.post<ProductImage>(`/products/${productId}/images/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 
   updateImage: (productId: number, imageId: number, data: Partial<ProductImagePayload>) =>
     api.patch<ProductImage>(`/products/${productId}/images/${imageId}`, data),

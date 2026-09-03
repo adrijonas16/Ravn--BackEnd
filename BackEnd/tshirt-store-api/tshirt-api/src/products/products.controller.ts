@@ -11,8 +11,12 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -176,6 +180,31 @@ export class ProductsController {
     return this.productsService.createImageUpload(productId, dto);
   }
 
+  @Post(':productId/images/upload')
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
+  @Roles('manager')
+  @RequireAbility('update', 'Product')
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5_000_000 } }))
+  @ApiOperation({ summary: 'Upload a product image to S3 (manager only)' })
+  uploadImage(
+    @Param('productId', ParseIntPipe) productId: number,
+    @UploadedFile() file: any,
+    @Body() body: Record<string, string>,
+  ) {
+    if (!file) throw new BadRequestException('Image file is required');
+
+    return this.productsService.uploadImageFile(productId, {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      buffer: file.buffer,
+      altText: body.altText || undefined,
+      sortOrder: this.parseOptionalNumber(body.sortOrder),
+      isPrimary: this.parseOptionalBoolean(body.isPrimary),
+      productVariantId: this.parseOptionalNumber(body.productVariantId),
+    });
+  }
+
   @Patch(':productId/images/:imageId')
   @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   @Roles('manager')
@@ -202,5 +231,19 @@ export class ProductsController {
     @Param('imageId', ParseIntPipe) imageId: number,
   ) {
     return this.productsService.removeImage(productId, imageId);
+  }
+
+  private parseOptionalNumber(value?: string) {
+    if (value === undefined || value === '') return undefined;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      throw new BadRequestException('Invalid numeric form value');
+    }
+    return parsed;
+  }
+
+  private parseOptionalBoolean(value?: string) {
+    if (value === undefined || value === '') return undefined;
+    return value === 'true' || value === '1';
   }
 }
