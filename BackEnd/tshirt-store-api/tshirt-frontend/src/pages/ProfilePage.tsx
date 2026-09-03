@@ -22,18 +22,42 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '0.8rem',
   borderRadius: '10px',
-  border: '1px solid #ded7cc',
-  background: '#f7f4ef',
-  color: '#111111',
+  border: '1px solid var(--border)',
+  background: 'var(--input-bg)',
+  color: 'var(--text)',
   fontSize: '0.9rem',
   boxSizing: 'border-box',
 };
 
 const labelStyle: React.CSSProperties = {
-  color: '#666666',
+  color: 'var(--text-muted)',
   fontSize: '0.78rem',
   fontWeight: 600,
   marginBottom: '0.35rem',
+};
+
+const panelStyle: React.CSSProperties = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: '16px',
+  padding: '1.5rem',
+};
+
+const nestedPanelStyle: React.CSSProperties = {
+  padding: '1rem',
+  borderRadius: '12px',
+  border: '1px solid var(--border)',
+  background: 'var(--surface-muted)',
+};
+
+const iconButtonStyle: React.CSSProperties = {
+  border: '1px solid var(--border)',
+  background: 'var(--surface-muted)',
+  color: 'var(--text)',
+  borderRadius: '8px',
+  padding: '0.5rem',
+  cursor: 'pointer',
+  display: 'flex',
 };
 
 function normalizeAddress(form: AddressPayload): AddressPayload {
@@ -85,7 +109,7 @@ function AddressForm({
         <input aria-label="Postal code" style={inputStyle} value={value.postalCode ?? ''} onChange={(event) => onChange({ ...value, postalCode: event.target.value })} placeholder="Postal code" />
         <input aria-label="Country code" style={{ ...inputStyle, textTransform: 'uppercase' }} value={value.countryCode} maxLength={2} onChange={(event) => onChange({ ...value, countryCode: event.target.value.slice(0, 2).toUpperCase() })} placeholder="US" />
       </div>
-      <label htmlFor={`${idPrefix}-default`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#333333', fontSize: '0.85rem' }}>
+      <label htmlFor={`${idPrefix}-default`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text)', fontSize: '0.85rem' }}>
         <input id={`${idPrefix}-default`} type="checkbox" checked={value.isDefault} onChange={(event) => onChange({ ...value, isDefault: event.target.checked })} />
         Default shipping address
       </label>
@@ -111,9 +135,9 @@ function AddressForm({
           <button type="button" aria-label="Cancel address edit" onClick={onCancel} style={{
             padding: '0.8rem',
             borderRadius: '10px',
-            border: '1px solid #31315f',
-            background: '#ded7cc',
-            color: '#111111',
+            border: '1px solid var(--border)',
+            background: 'var(--surface-muted)',
+            color: 'var(--text)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -277,14 +301,14 @@ export default function ProfilePage() {
   if (loading) return null;
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem', animation: 'fadeIn 0.5s ease-out' }}>
+    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem', animation: 'fadeIn 0.5s ease-out', color: 'var(--text)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
         <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'linear-gradient(135deg, #2457ff, #2457ff)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <User size={22} color="white" />
         </div>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 700, color: '#ffffff' }}>Profile</h1>
-          <p style={{ margin: 0, color: '#666666', fontSize: '0.85rem' }}>{user?.role}</p>
+          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 700, color: 'var(--text)' }}>Profile</h1>
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>{user?.role}</p>
         </div>
       </div>
 
@@ -303,8 +327,8 @@ export default function ProfilePage() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 0.9fr) minmax(320px, 1.1fr)', gap: '1.5rem' }} className="profile-grid">
-        <section style={{ background: '#ffffff', border: '1px solid #ded7cc', borderRadius: '16px', padding: '1.5rem' }}>
-          <h2 style={{ margin: '0 0 1.25rem', color: '#111111', fontSize: '1.05rem' }}>Account details</h2>
+        <section style={panelStyle}>
+          <h2 style={{ margin: '0 0 1.25rem', color: 'var(--text)', fontSize: '1.05rem' }}>Account details</h2>
           <div style={{ display: 'grid', gap: '0.95rem' }}>
             <div><label htmlFor="profile-email" style={labelStyle}>Email</label><input id="profile-email" style={inputStyle} value={profileForm.email} onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })} /></div>
             <div><label htmlFor="profile-first-name" style={labelStyle}>First name</label><input id="profile-first-name" style={inputStyle} value={profileForm.firstName} onChange={(event) => setProfileForm({ ...profileForm, firstName: event.target.value })} /></div>
@@ -330,42 +354,42 @@ export default function ProfilePage() {
         </section>
 
         {user?.role === 'client' && (
-        <section style={{ background: '#ffffff', border: '1px solid #ded7cc', borderRadius: '16px', padding: '1.5rem' }}>
+        <section style={panelStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1.25rem' }}>
-            <h2 style={{ margin: 0, color: '#111111', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <h2 style={{ margin: 0, color: 'var(--text)', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <MapPin size={18} color="#2457ff" />
               Addresses
             </h2>
-            <button type="button" onClick={() => setShowNewAddress((current) => !current)} style={{ border: '1px solid #31315f', background: '#ded7cc', color: '#111111', borderRadius: '10px', padding: '0.6rem 0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+            <button type="button" onClick={() => setShowNewAddress((current) => !current)} style={{ border: '1px solid var(--border)', background: 'var(--surface-muted)', color: 'var(--text)', borderRadius: '10px', padding: '0.6rem 0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
               {showNewAddress ? <X size={15} /> : <Plus size={15} />}
               {showNewAddress ? 'Cancel' : 'Add'}
             </button>
           </div>
 
           {showNewAddress && (
-            <div style={{ padding: '1rem', borderRadius: '12px', border: '1px solid #ded7cc', background: '#f7f4ef', marginBottom: '1rem' }}>
+            <div style={{ ...nestedPanelStyle, marginBottom: '1rem' }}>
               <AddressForm idPrefix="new-address" value={newAddress} saving={savingAddress} submitLabel="Add address" onChange={setNewAddress} onSubmit={createAddress} />
             </div>
           )}
 
           <div style={{ display: 'grid', gap: '0.9rem' }}>
             {addresses.map((address) => (
-              <div key={address.id} style={{ padding: '1rem', borderRadius: '12px', border: '1px solid #ded7cc', background: '#f7f4ef' }}>
+              <div key={address.id} style={nestedPanelStyle}>
                 {editingAddressId === address.id ? (
                   <AddressForm idPrefix={`edit-address-${address.id}`} value={editingAddress} saving={savingAddress} submitLabel="Save address" onChange={setEditingAddress} onSubmit={updateAddress} onCancel={() => setEditingAddressId(null)} />
                 ) : (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.4rem' }}>
                       <div>
-                        <p style={{ margin: 0, color: '#111111', fontWeight: 700 }}>{address.label ?? 'Address'} {address.isDefault ? <span style={{ color: '#2457ff', fontSize: '0.75rem' }}>Default</span> : null}</p>
-                        <p style={{ margin: '0.25rem 0 0', color: '#666666', fontSize: '0.85rem' }}>{address.recipientName} · {address.recipientPhone}</p>
+                        <p style={{ margin: 0, color: 'var(--text)', fontWeight: 700 }}>{address.label ?? 'Address'} {address.isDefault ? <span style={{ color: '#2457ff', fontSize: '0.75rem' }}>Default</span> : null}</p>
+                        <p style={{ margin: '0.25rem 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{address.recipientName} · {address.recipientPhone}</p>
                       </div>
                       <div style={{ display: 'flex', gap: '0.45rem' }}>
-                        <button type="button" aria-label="Edit address" onClick={() => startEditAddress(address)} style={{ border: '1px solid #31315f', background: '#ded7cc', color: '#111111', borderRadius: '8px', padding: '0.5rem', cursor: 'pointer', display: 'flex' }}><Edit3 size={15} /></button>
+                        <button type="button" aria-label="Edit address" onClick={() => startEditAddress(address)} style={iconButtonStyle}><Edit3 size={15} /></button>
                         <button type="button" aria-label="Delete address" onClick={() => deleteAddress(address.id)} style={{ border: '1px solid rgba(233, 69, 96, 0.25)', background: 'rgba(233, 69, 96, 0.1)', color: '#e94560', borderRadius: '8px', padding: '0.5rem', cursor: 'pointer', display: 'flex' }}><Trash2 size={15} /></button>
                       </div>
                     </div>
-                    <p style={{ margin: 0, color: '#333333', fontSize: '0.88rem', lineHeight: 1.45 }}>
+                    <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.88rem', lineHeight: 1.45 }}>
                       {address.line1}{address.line2 ? `, ${address.line2}` : ''}, {address.city}{address.stateRegion ? `, ${address.stateRegion}` : ''} {address.postalCode ?? ''}, {address.countryCode}
                     </p>
                   </>
@@ -373,7 +397,7 @@ export default function ProfilePage() {
               </div>
             ))}
             {addresses.length === 0 && !showNewAddress && (
-              <p style={{ color: '#666666', margin: 0, fontSize: '0.9rem' }}>No shipping addresses yet.</p>
+              <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.9rem' }}>No shipping addresses yet.</p>
             )}
           </div>
         </section>
