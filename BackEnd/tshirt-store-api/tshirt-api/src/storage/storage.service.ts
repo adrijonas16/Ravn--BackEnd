@@ -1,8 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 
 @Injectable()
 export class StorageService {
@@ -74,6 +79,24 @@ export class StorageService {
     return {
       storageKey,
       publicUrl: this.buildPublicUrl(bucket, storageKey),
+    };
+  }
+
+  async getProductImageObject(storageKey: string) {
+    if (!storageKey.startsWith('products/')) {
+      throw new BadRequestException('Invalid product image key');
+    }
+
+    const object = await this.s3.send(
+      new GetObjectCommand({
+        Bucket: this.getBucket(),
+        Key: storageKey,
+      }),
+    );
+
+    return {
+      body: object.Body as Readable,
+      contentType: object.ContentType ?? 'application/octet-stream',
     };
   }
 

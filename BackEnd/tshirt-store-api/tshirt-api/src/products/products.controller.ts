@@ -14,9 +14,12 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -57,6 +60,23 @@ export class ProductsController {
   @ApiOperation({ summary: 'List product colors (public)' })
   listColors() {
     return this.productsService.listColors();
+  }
+
+  @Get('images/file')
+  @ApiOperation({ summary: 'Read an uploaded product image from S3' })
+  async getImageFile(
+    @Query('key') storageKey: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    if (!storageKey) throw new BadRequestException('Image key is required');
+
+    const image = await this.productsService.getImageFile(storageKey);
+    response.set({
+      'Content-Type': image.contentType,
+      'Cache-Control': 'public, max-age=3600',
+    });
+
+    return new StreamableFile(image.body);
   }
 
   // GET /products/:productId — ParseIntPipe convierte el string de la URL a número
@@ -185,7 +205,9 @@ export class ProductsController {
   @Roles('manager')
   @RequireAbility('update', 'Product')
   @ApiBearerAuth()
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5_000_000 } }))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 15_000_000 } }),
+  )
   @ApiOperation({ summary: 'Upload a product image to S3 (manager only)' })
   uploadImage(
     @Param('productId', ParseIntPipe) productId: number,

@@ -5,6 +5,7 @@ import {
   Optional,
   BadRequestException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -32,6 +33,7 @@ export class ProductsService {
   // Inyección de dependencias: Prisma se inyecta automáticamente para acceder a la DB
   constructor(
     private prisma: PrismaService,
+    @Optional() private configService?: ConfigService,
     @Optional() private storageService?: StorageService,
   ) {}
 
@@ -320,13 +322,29 @@ export class ProductsService {
     );
 
     return this.addImage(productId, {
-      publicUrl: uploadedImage.publicUrl,
+      publicUrl: this.buildHostedImageUrl(
+        uploadedImage.storageKey,
+        uploadedImage.publicUrl,
+      ),
       storageKey: uploadedImage.storageKey,
       altText: file.altText,
       sortOrder: file.sortOrder,
       isPrimary: file.isPrimary,
       productVariantId: file.productVariantId,
     });
+  }
+
+  async getImageFile(storageKey: string) {
+    if (!this.storageService) {
+      throw new ConflictException('Storage service is not available');
+    }
+
+    const image = await this.prisma.productImage.findUnique({
+      where: { storageKey },
+    });
+    if (!image) throw new NotFoundException('Product image not found');
+
+    return this.storageService.getProductImageObject(storageKey);
   }
 
   async updateImage(command: UpdateProductImageCommandDto) {
@@ -396,6 +414,15 @@ export class ProductsService {
       productVariantId: productVariantId ?? null,
       isPrimary: true,
     };
+  }
+
+  private buildHostedImageUrl(storageKey: string, fallbackPublicUrl: string) {
+    const publicApiUrl =
+      this.configService?.get<string>('API_PUBLIC_URL') ??
+      this.configService?.get<string>('PUBLIC_API_URL');
+    if (!publicApiUrl) return fallbackPublicUrl;
+
+    return `${publicApiUrl.replace(/\/$/, '')}/api/v1/products/images/file?key=${encodeURIComponent(storageKey)}`;
   }
 
   // Genera un slug único: "Camiseta Azul" → "camiseta-azul-k5f3x2"
