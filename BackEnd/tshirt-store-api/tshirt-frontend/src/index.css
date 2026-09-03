@@ -3889,3 +3889,103 @@ body[data-theme='dark'] .cart-page__summary-row span {
   box-shadow: none;
   accent-color: var(--brand);
 }
+
+.orders-page__order,
+.orders-page__filter-bar,
+.orders-page__pagination,
+.orders-page__empty,
+.orders-page__metric {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.orders-page__order-toggle,
+.orders-page__details,
+.orders-page__detail-grid section,
+.orders-page__items,
+.orders-page__item {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.orders-page__order-toggle:hover {
+  background: color-mix(in srgb, var(--brand) 7%, var(--surface));
+}
+
+.orders-page__details {
+  background: var(--surface-muted);
+}
+
+.orders-page__detail-grid section,
+.orders-page__items {
+  background: var(--surface-elevated);
+}
+
+.orders-page__subtitle,
+.orders-page__metric span,
+.orders-page__detail-grid span,
+.orders-page__detail-grid p,
+.orders-page__order-main small,
+.orders-page__item small,
+.orders-page__empty p,
+.orders-page__page-size,
+.orders-page__pagination span {
+  color: var(--text-muted);
+}
+
+.orders-page__page-size select {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: 0 12px 28px var(--shadow);
+}
+
+.orders-page__filter {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.orders-page__filter:hover {
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 28%, var(--border));
+  color: var(--brand);
+}
+
+.orders-page__filter--active {
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand) 42%, var(--border));
+  color: var(--brand);
+}
+
+.orders-page__pagination button {
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand) 34%, var(--border));
+  color: var(--brand);
+  box-shadow: none;
+}
+
+.orders-page__pagination button:last-child,
+.orders-page__pagination button:hover:not(:disabled) {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #ffffff;
+}
+
+.orders-page__pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.orders-page__skeleton {
+  background:
+    linear-gradient(
+      90deg,
+      var(--surface) 25%,
+      var(--surface-muted) 50%,
+      var(--surface) 75%
+    );
+  background-size: 200% 100%;
+}
