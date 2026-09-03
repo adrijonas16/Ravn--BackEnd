@@ -3732,3 +3732,58 @@ body[data-theme='dark'] .cart-page__item-info span,
 body[data-theme='dark'] .cart-page__summary-row span {
   color: var(--text-muted);
 }
+
+.store-nav__link {
+  position: relative;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.store-nav__link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--brand);
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.store-nav__link:hover,
+.store-nav__link--active {
+  color: var(--brand);
+}
+
+.store-nav__link:hover::after,
+.store-nav__link--active::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.store-nav__icon-button,
+.store-nav__mobile-button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.store-nav__icon-button:hover,
+.store-nav__mobile-button:hover {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 28%, transparent);
+  color: var(--brand);
+  box-shadow: none;
+}
+
+.store-nav__signout {
+  background: transparent;
+  border-color: var(--border);
+}
