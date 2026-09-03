@@ -491,10 +491,10 @@ input::placeholder {
 .collection-page__hero-grid {
   grid-template-columns: minmax(0, 1.18fr) minmax(280px, 0.48fr);
   padding: clamp(1.35rem, 3vw, 2.3rem);
-  border: 1px solid rgba(17, 17, 17, 0.08);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 22px 70px rgba(24, 22, 19, 0.06);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .collection-page__eyebrow {
@@ -2486,10 +2486,10 @@ input::placeholder {
 
 .collection-page__hero-grid {
   padding: clamp(1.35rem, 3vw, 2.3rem);
-  border: 1px solid rgba(17, 17, 17, 0.08);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.58);
-  box-shadow: 0 22px 70px rgba(24, 22, 19, 0.06);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .collection-page__title {
