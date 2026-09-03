@@ -24,6 +24,7 @@ export async function createApp() {
   app.use(
     helmet({
       hsts: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
       contentSecurityPolicy: {
         directives: {
           upgradeInsecureRequests: null,
