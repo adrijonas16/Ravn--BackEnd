@@ -74,6 +74,7 @@ export class ProductsController {
     response.set({
       'Content-Type': image.contentType,
       'Cache-Control': 'public, max-age=3600',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
     });
 
     return new StreamableFile(image.body);
