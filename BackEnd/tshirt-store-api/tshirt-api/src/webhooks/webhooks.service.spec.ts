@@ -85,6 +85,13 @@ describe('WebhooksService', () => {
       where: { orderId: 1, providerPaymentId: 'cs_test_123' },
       data: { status: PaymentStatus.succeeded, paidAt: expect.any(Date) },
     });
+    expect(tx.notification.create).toHaveBeenCalledWith({
+      data: {
+        userId: 7,
+        type: 'order_paid',
+        recipientEmail: 'client@test.com',
+      },
+    });
     expect(tx.productVariant.update).toHaveBeenCalledWith({
       where: { id: 10 },
       data: { stock: { decrement: 2 } },

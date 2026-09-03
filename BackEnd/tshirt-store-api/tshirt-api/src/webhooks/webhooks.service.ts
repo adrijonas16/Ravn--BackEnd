@@ -181,7 +181,10 @@ export class WebhooksService {
     await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        include: { items: { include: { productVariant: true } } },
+        include: {
+          user: { select: { id: true, email: true } },
+          items: { include: { productVariant: true } },
+        },
       });
       // Solo procesa si la orden existe y está en estado "pending"
       if (!order || order.currentStatus !== OrderStatus.pending) return;
@@ -218,6 +221,14 @@ export class WebhooksService {
       await tx.payment.updateMany({
         where: { orderId, providerPaymentId },
         data: { status: PaymentStatus.succeeded, paidAt: new Date() },
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: order.user.id,
+          type: 'order_paid',
+          recipientEmail: order.user.email,
+        },
       });
 
       // Por cada item de la orden: descuenta stock y registra el movimiento de inventario

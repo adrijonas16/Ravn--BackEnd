@@ -3787,3 +3787,105 @@ body[data-theme='dark'] .cart-page__summary-row span {
   background: transparent;
   border-color: var(--border);
 }
+
+.admin-products__search,
+.admin-products__toolbar select,
+.admin-products__form input,
+.admin-products__form select,
+.admin-products__form textarea,
+.admin-promos__form input,
+.admin-promos__form select,
+.admin-promos__table-toolbar select,
+.admin-promos__table input {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: 0 12px 28px var(--shadow);
+}
+
+.admin-products__search input {
+  background: transparent;
+  color: var(--text);
+}
+
+.admin-products__search,
+.admin-products__form label,
+.admin-products__table th,
+.admin-products__table-product small,
+.admin-products__pagination,
+.admin-products__editor-header p,
+.admin-products__image-card small,
+.admin-products__variant-row small,
+.admin-products__empty,
+.admin-promos__form label,
+.admin-promos__table-toolbar label,
+.admin-promos__table th {
+  color: var(--text-muted);
+}
+
+.admin-products__editor h2,
+.admin-products__section h3,
+.admin-promos__section-title h2,
+.admin-promos__table,
+.admin-products__table,
+.admin-promos__table-toolbar strong {
+  color: var(--text);
+}
+
+.admin-products__table th,
+.admin-products__table td,
+.admin-promos__table th,
+.admin-promos__table td,
+.admin-products__editor-header,
+.admin-products__section,
+.admin-products__pagination {
+  border-color: var(--border);
+}
+
+.admin-products__table tbody tr:hover,
+.admin-promos__table tbody tr:hover {
+  background: color-mix(in srgb, var(--brand) 7%, transparent);
+}
+
+.admin-products__table-product span,
+.admin-products__image-card,
+.admin-products__variant-row,
+.admin-products__empty {
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
+.admin-products__edit-button,
+.admin-products__row-actions button:not(.admin-products__danger),
+.admin-products__variant-row button,
+.admin-promos__actions button,
+.admin-promos__pagination button,
+.admin-products__pagination button {
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--border));
+  color: var(--brand);
+  box-shadow: none;
+}
+
+.admin-products__edit-button:hover,
+.admin-products__row-actions button:not(.admin-products__danger):hover,
+.admin-products__variant-row button:hover,
+.admin-promos__actions button:hover,
+.admin-promos__pagination button:hover:not(:disabled),
+.admin-products__pagination button:hover:not(:disabled) {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #ffffff;
+}
+
+.admin-products__danger {
+  background: color-mix(in srgb, #d63447 12%, var(--surface));
+  border-color: color-mix(in srgb, #d63447 38%, var(--border));
+  color: #d63447;
+}
+
+.admin-promos__check input,
+.admin-products__check input {
+  box-shadow: none;
+  accent-color: var(--brand);
+}
