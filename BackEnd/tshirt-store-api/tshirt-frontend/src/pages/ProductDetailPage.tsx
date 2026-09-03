@@ -51,7 +51,7 @@ function InfoSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div style={{ borderTop: '1px solid #e4e4e4' }}>
+    <div style={{ borderTop: '1px solid var(--border)' }}>
       <button
         onClick={() => setOpen((current) => !current)}
         style={{
@@ -59,7 +59,7 @@ function InfoSection({
           padding: '1rem 0',
           border: 'none',
           background: 'transparent',
-          color: '#111',
+          color: 'var(--text)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -74,7 +74,7 @@ function InfoSection({
         {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
       </button>
       {open && (
-        <div style={{ color: '#555', fontSize: '0.92rem', lineHeight: 1.65, paddingBottom: '1.1rem' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.92rem', lineHeight: 1.65, paddingBottom: '1.1rem' }}>
           {children}
         </div>
       )}
@@ -103,8 +103,8 @@ function ProductGallery({
         <div key={key} style={{
           minHeight: index === 0 ? 560 : 370,
           gridColumn: index === 0 ? 'span 2' : 'span 1',
-          background: index === 0 ? '#fff' : '#ece7df',
-          border: '1px solid #e2ded6',
+          background: index === 0 ? 'var(--surface)' : 'var(--surface-muted)',
+          border: '1px solid var(--border)',
           display: 'grid',
           placeItems: 'center',
           overflow: 'hidden',
@@ -180,7 +180,7 @@ function ProductPurchasePanel({
     <aside style={{
       position: 'sticky',
       top: '5.5rem',
-      background: '#f7f4ef',
+      background: 'var(--surface-muted)',
       paddingBottom: '1rem',
     }}>
       <p style={{
@@ -196,7 +196,7 @@ function ProductPurchasePanel({
 
       <h1 style={{
         margin: '0 0 0.85rem',
-        color: '#111',
+        color: 'var(--text)',
         fontSize: 'clamp(2rem, 4vw, 3.35rem)',
         lineHeight: 0.95,
         fontWeight: 950,
@@ -206,20 +206,20 @@ function ProductPurchasePanel({
         {product.name}
       </h1>
 
-      <p style={{ margin: '0 0 1rem', color: '#111', fontSize: '1.05rem', fontWeight: 800 }}>
+      <p style={{ margin: '0 0 1rem', color: 'var(--text)', fontSize: '1.05rem', fontWeight: 800 }}>
         ${selectedPrice.toFixed(2)} USD
       </p>
 
-      <p style={{ color: '#4a4a4a', lineHeight: 1.65, fontSize: '0.98rem', marginBottom: '1.4rem' }}>
+      <p style={{ color: 'var(--text-soft)', lineHeight: 1.65, fontSize: '0.98rem', marginBottom: '1.4rem' }}>
         {product.description}
       </p>
 
       <div style={{ marginBottom: '1.15rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-          <div style={{ color: '#111', fontSize: '0.82rem', fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          <div style={{ color: 'var(--text)', fontSize: '0.82rem', fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             Select size
           </div>
-          <span style={{ color: '#777', fontSize: '0.78rem', fontWeight: 700 }}>Size guide</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 700 }}>Size guide</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.55rem' }}>
           {sizes.map((size) => {
@@ -235,9 +235,9 @@ function ProductPurchasePanel({
                 aria-label={`Select size ${size.name}`}
                 style={{
                   minHeight: 48,
-                  border: isSelected ? `2px solid ${accent}` : '1px solid #222',
-                  background: isSelected ? '#111' : '#fff',
-                  color: isSelected ? '#fff' : '#111',
+                  border: isSelected ? `2px solid ${accent}` : '1px solid var(--border-strong)',
+                  background: isSelected ? 'var(--text)' : 'var(--surface)',
+                  color: isSelected ? 'var(--surface)' : 'var(--text)',
                   cursor: disabled ? 'not-allowed' : 'pointer',
                   fontSize: '0.9rem',
                   fontWeight: 900,
@@ -252,7 +252,7 @@ function ProductPurchasePanel({
       </div>
 
       <div style={{ marginBottom: '1.25rem' }}>
-        <div style={{ display: 'block', color: '#111', fontSize: '0.82rem', fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.65rem' }}>
+        <div style={{ display: 'block', color: 'var(--text)', fontSize: '0.82rem', fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.65rem' }}>
           Color
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
@@ -271,9 +271,9 @@ function ProductPurchasePanel({
                   gap: '0.45rem',
                   minHeight: 42,
                   padding: '0 0.75rem',
-                  border: isSelected ? `2px solid ${accent}` : '1px solid #222',
-                  background: '#fff',
-                  color: '#111',
+                  border: isSelected ? `2px solid ${accent}` : '1px solid var(--border-strong)',
+                  background: 'var(--surface)',
+                  color: 'var(--text)',
                   cursor: variant ? 'pointer' : 'not-allowed',
                   fontWeight: 800,
                   opacity: variant ? 1 : 0.35,
@@ -284,7 +284,7 @@ function ProductPurchasePanel({
                   height: 17,
                   borderRadius: '50%',
                   background: color.hexCode ?? '#ddd',
-                  border: '1px solid #bbb',
+                  border: '1px solid var(--border)',
                 }} />
                 {color.name}
               </button>
@@ -294,12 +294,12 @@ function ProductPurchasePanel({
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr 36px', border: '1px solid #111', background: '#fff' }}>
-          <button type="button" onClick={() => onQuantityChange(Math.max(1, quantity - 1))} aria-label="Decrease quantity" style={{ border: 'none', background: 'transparent', color: '#111', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr 36px', border: '1px solid var(--border-strong)', background: 'var(--surface)' }}>
+          <button type="button" onClick={() => onQuantityChange(Math.max(1, quantity - 1))} aria-label="Decrease quantity" style={{ border: 'none', background: 'transparent', color: 'var(--text)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
             <Minus size={15} />
           </button>
-          <span style={{ display: 'grid', placeItems: 'center', color: '#111', fontWeight: 900 }}>{quantity}</span>
-          <button type="button" onClick={() => onQuantityChange(quantity + 1)} aria-label="Increase quantity" style={{ border: 'none', background: 'transparent', color: '#111', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+          <span style={{ display: 'grid', placeItems: 'center', color: 'var(--text)', fontWeight: 900 }}>{quantity}</span>
+          <button type="button" onClick={() => onQuantityChange(quantity + 1)} aria-label="Increase quantity" style={{ border: 'none', background: 'transparent', color: 'var(--text)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
             <Plus size={15} />
           </button>
         </div>
@@ -311,8 +311,8 @@ function ProductPurchasePanel({
           style={{
             minHeight: 54,
             border: 'none',
-            background: message === 'success' ? '#00a676' : '#111',
-            color: '#fff',
+            background: message === 'success' ? '#00a676' : 'var(--text)',
+            color: 'var(--surface)',
             cursor: !canBuy || adding || !selectedSku || selectedSku.stock === 0 ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -329,7 +329,7 @@ function ProductPurchasePanel({
       </div>
 
       {selectedSku && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#666', fontSize: '0.78rem', fontWeight: 700, marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 700, marginBottom: '1rem' }}>
           <span>{selectedSku.stock > 0 ? `${selectedSku.stock} in stock` : 'Out of stock'}</span>
           <span>SKU: {selectedSku.sku}</span>
         </div>
@@ -342,7 +342,7 @@ function ProductPurchasePanel({
       )}
 
       {product.likesCount !== undefined && product.likesCount > 0 && (
-        <p style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#555', fontSize: '0.85rem', marginBottom: '1rem' }}>
+        <p style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
           <Heart size={15} fill={accent} color={accent} />
           {product.likesCount} people like this product
         </p>
@@ -359,8 +359,8 @@ function ProductPurchasePanel({
           justifyContent: 'center',
           gap: '0.5rem',
           border: `1px solid ${accent}`,
-          background: product.isLiked ? `${accent}14` : '#fff',
-          color: product.isLiked ? accent : '#111',
+          background: product.isLiked ? `${accent}22` : 'var(--surface)',
+          color: product.isLiked ? accent : 'var(--text)',
           cursor: 'pointer',
           fontWeight: 950,
           letterSpacing: '0.05em',
@@ -382,13 +382,13 @@ function ProductPurchasePanel({
       </InfoSection>
 
       <InfoSection title="Size guide">
-        <div style={{ display: 'grid', gridTemplateColumns: `80px repeat(${Math.max(sizes.length, 1)}, 1fr)`, borderTop: '1px solid #ddd', borderLeft: '1px solid #ddd' }}>
-          <strong style={{ padding: '0.55rem', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>Size</strong>
-          {sizes.map((size) => <strong key={size.id} style={{ padding: '0.55rem', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>{size.name}</strong>)}
-          <span style={{ padding: '0.55rem', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>Stock</span>
+        <div style={{ display: 'grid', gridTemplateColumns: `80px repeat(${Math.max(sizes.length, 1)}, 1fr)`, borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)' }}>
+          <strong style={{ padding: '0.55rem', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>Size</strong>
+          {sizes.map((size) => <strong key={size.id} style={{ padding: '0.55rem', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>{size.name}</strong>)}
+          <span style={{ padding: '0.55rem', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>Stock</span>
           {sizes.map((size) => {
             const total = product.variants.filter((variant) => variant.size.id === size.id).reduce((sum, variant) => sum + variant.stock, 0);
-            return <span key={size.id} style={{ padding: '0.55rem', borderRight: '1px solid #ddd', borderBottom: '1px solid #ddd' }}>{total}</span>;
+            return <span key={size.id} style={{ padding: '0.55rem', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>{total}</span>;
           })}
         </div>
       </InfoSection>
@@ -418,20 +418,33 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     if (!productId) return;
+    let cancelled = false;
     productsApi
       .get(Number(productId))
-      .then((response) => {
-        setProduct(response.data);
+      .then(async (response) => {
+        let nextProduct = response.data;
+        if (isAuthenticated) {
+          try {
+            const likedResponse = await productsApi.listLiked({ page: 1, limit: 100 });
+            const likedIds = new Set(likedResponse.data.data.map((item) => item.id));
+            nextProduct = { ...nextProduct, isLiked: likedIds.has(nextProduct.id) };
+          } catch { /* keep product detail */ }
+        }
+        if (cancelled) return;
+        setProduct(nextProduct);
         const requestedVariantId = Number(searchParams.get('variant'));
         const requestedSku = Number.isFinite(requestedVariantId)
-          ? response.data.variants.find((variant) => variant.id === requestedVariantId && variant.isActive && variant.stock > 0)
+          ? nextProduct.variants.find((variant) => variant.id === requestedVariantId && variant.isActive && variant.stock > 0)
           : undefined;
-        const activeSku = requestedSku ?? response.data.variants.find((variant) => variant.isActive && variant.stock > 0);
+        const activeSku = requestedSku ?? nextProduct.variants.find((variant) => variant.isActive && variant.stock > 0);
         if (activeSku) setSelectedSku(activeSku);
       })
       .catch(() => navigate('/'))
       .finally(() => setLoading(false));
-  }, [navigate, productId, searchParams]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, navigate, productId, searchParams]);
 
   const sizes = useMemo(() => uniqueActiveSizes(product?.variants), [product]);
   const colors = useMemo(() => uniqueActiveColors(product?.variants), [product]);
@@ -514,7 +527,7 @@ export default function ProductDetailPage() {
   const selectedPrice = selectedSku ? Number(selectedSku.price) : Number(product.variants[0]?.price ?? 0);
 
   return (
-    <main style={{ background: '#f7f4ef', color: '#111', minHeight: '100vh', animation: 'fadeIn 0.35s ease-out' }}>
+    <main className="product-detail-page" style={{ background: 'var(--surface-muted)', color: 'var(--text)', minHeight: '100vh', animation: 'fadeIn 0.35s ease-out' }}>
       <div style={{
         maxWidth: 1440,
         margin: '0 auto',
@@ -525,13 +538,13 @@ export default function ProductDetailPage() {
           alignItems: 'center',
           gap: '0.45rem',
           padding: '0.35rem 0 1rem',
-          color: '#6a6a6a',
+          color: 'var(--text-muted)',
           fontSize: '0.78rem',
           fontWeight: 700,
           letterSpacing: '0.04em',
           textTransform: 'uppercase',
         }}>
-          <Link to="/" style={{ color: '#111' }}>Shop</Link>
+          <Link to="/" style={{ color: 'var(--text)' }}>Shop</Link>
           <ChevronRight size={14} />
           <span>{product.category?.name ?? 'Tees'}</span>
           <ChevronRight size={14} />

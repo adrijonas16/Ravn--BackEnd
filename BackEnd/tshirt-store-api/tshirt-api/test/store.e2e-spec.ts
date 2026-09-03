@@ -12,10 +12,12 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { PrismaClient } from '@prisma/client';
 import { execFileSync } from 'node:child_process';
+import Stripe from 'stripe';
 import { AppModule } from '../src/app.module';
 
 // ---------------------------------------------------------------------------
@@ -25,6 +27,7 @@ import { AppModule } from '../src/app.module';
 const TEST_DB_URL =
   process.env.TEST_DATABASE_URL ??
   'postgresql://postgres:pass_nerdery@127.0.0.1:5433/tshirt_store?schema=tshirt_store_test';
+const TEST_STRIPE_WEBHOOK_SECRET = 'whsec_e2e_test_secret';
 
 /** A standalone Prisma client that points at the test schema. */
 function createTestPrisma(): PrismaClient {
@@ -183,13 +186,14 @@ describe('T-Shirt Store E2E', () => {
   beforeAll(async () => {
     // Override DATABASE_URL so the app talks to the test schema.
     process.env.DATABASE_URL = TEST_DB_URL;
+    process.env.STRIPE_WEBHOOK_SECRET = TEST_STRIPE_WEBHOOK_SECRET;
     prepareTestDatabase();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication({ rawBody: true });
 
     // Mirror the same global pipes / prefix as main.ts
     app.setGlobalPrefix('api/v1');
@@ -367,6 +371,7 @@ describe('T-Shirt Store E2E', () => {
     let userId: number;
     let variantId: number;
     let addressId: number;
+    let orderId: number;
 
     beforeAll(async () => {
       await truncateAll(prisma);
@@ -403,6 +408,7 @@ describe('T-Shirt Store E2E', () => {
       expect(res.body.currentStatus).toBe('pending');
       expect(res.body.items).toHaveLength(1);
       expect(res.body.userId).toBe(userId);
+      orderId = res.body.id as number;
     });
 
     it('should show the order with pending status (GET /orders)', async () => {
@@ -413,6 +419,61 @@ describe('T-Shirt Store E2E', () => {
 
       expect(res.body.data.length).toBeGreaterThanOrEqual(1);
       expect(res.body.data[0].currentStatus).toBe('pending');
+    });
+
+    it('should mark the order as paid and decrement stock after Stripe webhook', async () => {
+      const providerPaymentId = `pi_e2e_${Date.now()}`;
+      await prisma.payment.create({
+        data: {
+          orderId,
+          method: 'payment_intent',
+          provider: 'stripe',
+          providerPaymentId,
+          currency: 'USD',
+          amount: 59.98,
+        },
+      });
+
+      const payload = JSON.stringify({
+        id: `evt_e2e_${Date.now()}`,
+        object: 'event',
+        type: 'payment_intent.succeeded',
+        data: {
+          object: {
+            id: providerPaymentId,
+            object: 'payment_intent',
+            metadata: { orderId: orderId.toString() },
+          },
+        },
+      });
+      const webhookSecret = app
+        .get(ConfigService)
+        .getOrThrow<string>('STRIPE_WEBHOOK_SECRET');
+      const signature = Stripe.webhooks.generateTestHeaderString({
+        payload,
+        secret: webhookSecret,
+      });
+
+      const webhookResponse = await request(server)
+        .post('/api/v1/webhooks/stripe')
+        .set('stripe-signature', signature)
+        .set('Content-Type', 'application/json')
+        .send(payload);
+
+      expect(webhookResponse.status).toBe(200);
+
+      const [order, sku, payment] = await Promise.all([
+        prisma.order.findUniqueOrThrow({ where: { id: orderId } }),
+        prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } }),
+        prisma.payment.findUniqueOrThrow({
+          where: { providerPaymentId },
+        }),
+      ]);
+
+      expect(order.currentStatus).toBe('paid');
+      expect(sku.stock).toBe(98);
+      expect(payment.status).toBe('succeeded');
+      expect(payment.paidAt).toBeInstanceOf(Date);
     });
 
     it('should reject creating another order when cart is empty', async () => {

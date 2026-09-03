@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Heart, Menu, Package, Settings, ShoppingBag, Shirt, TicketPercent, Trash2, User, X } from 'lucide-react';
+import { Bell, Heart, Menu, Moon, Package, Settings, ShoppingBag, Shirt, Sun, TicketPercent, Trash2, User, X } from 'lucide-react';
 import { authApi } from '../../api/auth';
 import { cartApi } from '../../api/cart';
 import { notificationsApi, NotificationItem } from '../../api/notifications';
@@ -24,11 +24,17 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('store-theme') ?? 'light');
   const location = useLocation();
   const navigate = useNavigate();
   const canShop = user?.role === 'client';
 
   const cartCount = cart?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    localStorage.setItem('store-theme', theme);
+  }, [theme]);
 
   const loadCart = useCallback(() => {
     if (!isAuthenticated || !canShop) {
@@ -117,6 +123,13 @@ export default function Navbar() {
           </div>
 
           <div className="store-nav__actions">
+            <button
+              className="store-nav__icon-button"
+              onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+              aria-label={theme === 'dark' ? 'Use light mode' : 'Use dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
+            </button>
             {isAuthenticated ? (
               <>
                 <button className="store-nav__icon-button" onClick={() => { setNotificationsOpen(true); setCartOpen(false); loadNotifications(); }} aria-label="Notifications">

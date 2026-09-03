@@ -10,8 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-
-const LOW_STOCK_THRESHOLD = 3;
+import { LOW_STOCK_THRESHOLD } from '../common/constants/inventory.constants';
 
 @Injectable()
 export class PaymentsService {
@@ -30,9 +29,7 @@ export class PaymentsService {
       'STRIPE_SECRET_KEY',
       'sk_test_placeholder',
     );
-    this.stripe = new Stripe(this.stripeSecretKey, {
-      apiVersion: '2025-05-28' as any,
-    });
+    this.stripe = new Stripe(this.stripeSecretKey);
   }
 
   private isStripeConfigured() {
@@ -127,7 +124,7 @@ export class PaymentsService {
     );
     const cancelUrl = this.config.get(
       'STRIPE_CANCEL_URL',
-      'http://localhost:5173/cart',
+      'http://localhost:5173/orders',
     );
 
     if (!this.isStripeConfigured()) {
@@ -164,8 +161,8 @@ export class PaymentsService {
         quantity: item.quantity,
       })),
       metadata: { orderId: order.id.toString() },
-      success_url: `${successUrl}?orderId=${order.id}`,
-      cancel_url: cancelUrl,
+      success_url: `${successUrl}?orderId=${order.id}&checkout=success`,
+      cancel_url: `${cancelUrl}?orderId=${order.id}&checkout=cancelled`,
     });
 
     if (!session.url) {

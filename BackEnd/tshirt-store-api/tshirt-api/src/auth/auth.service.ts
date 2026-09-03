@@ -198,6 +198,13 @@ export class AuthService {
         expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hora
       },
     });
+    await this.prisma.notification.create({
+      data: {
+        userId: user.id,
+        type: 'password_reset',
+        recipientEmail: user.email,
+      },
+    });
 
     const response: { message: string; resetToken?: string } = {
       message: 'If the email exists, a reset link was sent',
@@ -217,6 +224,7 @@ export class AuthService {
 
     const resetToken = await this.prisma.passwordResetToken.findUnique({
       where: { tokenHash },
+      include: { user: { select: { email: true } } },
     });
 
     // Rechaza si: no existe, ya fue usado, o ya expiró
@@ -242,9 +250,15 @@ export class AuthService {
         where: { id: resetToken.id },
         data: { usedAt: new Date() },
       }),
+      this.prisma.notification.create({
+        data: {
+          userId: resetToken.userId,
+          type: 'password_changed',
+          recipientEmail: resetToken.user.email,
+        },
+      }),
     ]);
 
-    // TODO: send password-changed notification email via queue
     return { message: 'Password reset successfully' };
   }
 

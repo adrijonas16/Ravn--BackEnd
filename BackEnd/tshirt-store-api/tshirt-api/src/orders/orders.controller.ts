@@ -19,6 +19,8 @@ import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../common/guards/roles.guard';
+import { RequireAbility } from '../common/decorators/require-ability.decorator';
+import { PoliciesGuard } from '../common/guards/policies.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/types/authenticated-user.type';
 
@@ -33,7 +35,8 @@ export class OrdersController {
   // POST /orders — crea una orden a partir del carrito activo del usuario
   @Post()
   @Roles('client')
-  @UseGuards(RolesGuard)
+  @RequireAbility('create', 'Order')
+  @UseGuards(RolesGuard, PoliciesGuard)
   @ApiOperation({ summary: 'Create an order from cart' })
   create(
     // @CurrentUser es un decorador custom que extrae el usuario del token JWT
@@ -45,6 +48,8 @@ export class OrdersController {
 
   // GET /orders — lista órdenes con filtros (el service filtra según el rol del usuario)
   @Get()
+  @RequireAbility('read', 'Order')
+  @UseGuards(PoliciesGuard)
   @ApiOperation({ summary: 'List orders' })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
@@ -56,6 +61,8 @@ export class OrdersController {
 
   // GET /orders/:orderId — detalle de una orden (el service valida permisos)
   @Get(':orderId')
+  @RequireAbility('read', 'Order')
+  @UseGuards(PoliciesGuard)
   @ApiOperation({ summary: 'Get order details' })
   findOne(
     @Param('orderId', ParseIntPipe) orderId: number,
@@ -67,7 +74,8 @@ export class OrdersController {
   // PATCH /orders/:orderId/status — solo manager y repartidor pueden cambiar estados
   @Patch(':orderId/status')
   @Roles('manager', 'delivery_person')
-  @UseGuards(RolesGuard)
+  @RequireAbility('update', 'Order')
+  @UseGuards(RolesGuard, PoliciesGuard)
   @ApiOperation({ summary: 'Update order status' })
   updateStatus(
     @Param('orderId', ParseIntPipe) orderId: number,
@@ -85,6 +93,8 @@ export class OrdersController {
   // POST /orders/:orderId/cancel — cualquier usuario autenticado puede intentar cancelar
   // (el service valida si realmente tiene permiso y si el estado lo permite)
   @Post(':orderId/cancel')
+  @RequireAbility('delete', 'Order')
+  @UseGuards(PoliciesGuard)
   // HttpCode(200) porque POST normalmente devuelve 201, pero cancelar no crea nada nuevo
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancel an order (client, before shipped)' })

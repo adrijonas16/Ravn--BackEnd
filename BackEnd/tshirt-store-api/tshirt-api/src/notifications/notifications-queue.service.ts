@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import {
   LOW_STOCK_NOTIFICATION_JOB,
+  LOW_STOCK_NOTIFICATION_JOB_OPTIONS,
   NOTIFICATIONS_QUEUE,
 } from './notification-jobs.constants';
 import { LowStockNotificationJobDto } from './dto/low-stock-notification-job.dto';
@@ -30,14 +31,14 @@ export class NotificationsQueueService {
     }
 
     try {
-      await this.notificationsQueue.add(LOW_STOCK_NOTIFICATION_JOB, payload, {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 2000 },
-        removeOnComplete: true,
-        removeOnFail: 100,
-      });
-    } catch (error: any) {
-      this.logger.error(`Queue enqueue failed: ${error.message}`);
+      await this.notificationsQueue.add(
+        LOW_STOCK_NOTIFICATION_JOB,
+        payload,
+        LOW_STOCK_NOTIFICATION_JOB_OPTIONS,
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Queue enqueue failed: ${message}`);
       await this.notificationsService.createLowStockNotifications(payload);
     }
   }

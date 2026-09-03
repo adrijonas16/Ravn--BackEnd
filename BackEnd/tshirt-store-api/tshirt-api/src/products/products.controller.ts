@@ -21,8 +21,11 @@ import { UpdateProductVariantDto } from './dto/update-sku.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { CreateProductImageDto } from './dto/create-product-image.dto';
 import { UpdateProductImageDto } from './dto/update-product-image.dto';
+import { CreateProductImageUploadDto } from './dto/create-product-image-upload.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../common/guards/roles.guard';
+import { RequireAbility } from '../common/decorators/require-ability.decorator';
+import { PoliciesGuard } from '../common/guards/policies.guard';
 
 // @ApiTags agrupa estos endpoints bajo "Products" en la documentación Swagger
 @ApiTags('Products')
@@ -64,9 +67,10 @@ export class ProductsController {
   // POST /products — crear producto
   @Post()
   // UseGuards aplica guardias en orden: primero verifica JWT, luego verifica el rol
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   // @Roles limita el acceso solo a usuarios con rol 'manager'
   @Roles('manager')
+  @RequireAbility('create', 'Product')
   // @ApiBearerAuth indica en Swagger que necesita token Bearer en el header
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a product (manager only)' })
@@ -77,8 +81,9 @@ export class ProductsController {
 
   // PATCH /products/:productId — actualización parcial
   @Patch(':productId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   @Roles('manager')
+  @RequireAbility('update', 'Product')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a product (manager only)' })
   update(
@@ -90,8 +95,9 @@ export class ProductsController {
 
   // DELETE /products/:productId — soft delete (no borra realmente)
   @Delete(':productId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   @Roles('manager')
+  @RequireAbility('delete', 'Product')
   @ApiBearerAuth()
   // HttpCode(204) = respuesta sin contenido, indica éxito sin devolver datos
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -111,8 +117,9 @@ export class ProductsController {
 
   // POST /products/:productId/variants — crear variante, solo manager
   @Post(':productId/variants')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   @Roles('manager')
+  @RequireAbility('create', 'ProductVariant')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a product variant (manager only)' })
   createVariant(
@@ -124,8 +131,9 @@ export class ProductsController {
 
   // PATCH /products/:productId/variants/:productVariantId — actualizar variante, solo manager
   @Patch(':productId/variants/:productVariantId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   @Roles('manager')
+  @RequireAbility('update', 'ProductVariant')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a product variant (manager only)' })
   updateVariant(
@@ -141,8 +149,9 @@ export class ProductsController {
   }
 
   @Post(':productId/images')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   @Roles('manager')
+  @RequireAbility('update', 'Product')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Add a product image by URL (manager only)' })
   addImage(
@@ -152,9 +161,25 @@ export class ProductsController {
     return this.productsService.addImage(productId, dto);
   }
 
-  @Patch(':productId/images/:imageId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post(':productId/images/upload-url')
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   @Roles('manager')
+  @RequireAbility('update', 'Product')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Create an S3 presigned upload URL for a product image',
+  })
+  createImageUpload(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Body() dto: CreateProductImageUploadDto,
+  ) {
+    return this.productsService.createImageUpload(productId, dto);
+  }
+
+  @Patch(':productId/images/:imageId')
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
+  @Roles('manager')
+  @RequireAbility('update', 'Product')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a product image (manager only)' })
   updateImage(
@@ -166,8 +191,9 @@ export class ProductsController {
   }
 
   @Delete(':productId/images/:imageId')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PoliciesGuard)
   @Roles('manager')
+  @RequireAbility('update', 'Product')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a product image (manager only)' })

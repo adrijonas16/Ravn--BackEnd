@@ -8,11 +8,11 @@ const inputWrapperStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '0.75rem',
-  background: '#f7f4ef',
+  background: 'var(--surface-muted)',
   borderRadius: '12px',
-  border: '1px solid #ded7cc',
+  border: '1px solid var(--border)',
   padding: '0 1rem',
-  transition: 'border-color 0.2s ease',
+  transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -20,14 +20,15 @@ const inputStyle: React.CSSProperties = {
   padding: '0.85rem 0',
   border: 'none',
   background: 'transparent',
-  color: '#111111',
+  color: 'var(--text)',
   outline: 'none',
   fontSize: '0.95rem',
+  minWidth: 0,
 };
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
-  color: '#666666',
+  color: 'var(--text-muted)',
   fontSize: '0.8rem',
   fontWeight: 500,
   marginBottom: '0.4rem',
@@ -62,7 +63,7 @@ export default function RegisterPage() {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
 
   return (
-    <div style={{
+    <div className="register-page" style={{
       minHeight: 'calc(100vh - 60px)',
       display: 'flex',
       alignItems: 'center',
@@ -70,40 +71,18 @@ export default function RegisterPage() {
       padding: '2rem',
       position: 'relative',
     }}>
-      {/* Background orbs */}
-      <div style={{
-        position: 'absolute',
-        top: '15%',
-        right: '25%',
-        width: '400px',
-        height: '400px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(108, 92, 231, 0.08), transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '15%',
-        left: '25%',
-        width: '300px',
-        height: '300px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(0, 206, 201, 0.06), transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-
       <div style={{
         width: '100%',
         maxWidth: 420,
         animation: 'scaleIn 0.4s ease-out',
       }}>
         <div style={{
-          background: '#ffffff',
+          background: 'var(--surface)',
           borderRadius: '24px',
-          border: '1px solid #ded7cc',
+          border: '1px solid var(--border)',
           padding: 'clamp(1.5rem, 4vw, 2.5rem)',
           position: 'relative',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 20px 60px var(--shadow)',
         }}>
           {/* Gradient top border */}
           <div style={{
@@ -134,11 +113,11 @@ export default function RegisterPage() {
               margin: '0 0 0.25rem',
               fontSize: '1.5rem',
               fontWeight: 700,
-              color: '#111111',
+              color: 'var(--text)',
             }}>
               Create Account
             </h1>
-            <p style={{ margin: 0, color: '#666666', fontSize: '0.9rem' }}>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               Join ThreadVault today
             </p>
           </div>
@@ -168,8 +147,8 @@ export default function RegisterPage() {
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 140px', minWidth: 0 }}>
                 <label htmlFor="register-first-name" style={labelStyle}>First Name</label>
-                <div style={inputWrapperStyle}>
-                  <User size={18} color="#777777" />
+                <div className="register-page__input" style={inputWrapperStyle}>
+                  <User size={18} />
                   <input
                     id="register-first-name"
                     placeholder="John"
@@ -182,8 +161,8 @@ export default function RegisterPage() {
               </div>
               <div style={{ flex: '1 1 140px', minWidth: 0 }}>
                 <label htmlFor="register-last-name" style={labelStyle}>Last Name</label>
-                <div style={inputWrapperStyle}>
-                  <User size={18} color="#777777" />
+                <div className="register-page__input" style={inputWrapperStyle}>
+                  <User size={18} />
                   <input
                     id="register-last-name"
                     placeholder="Doe"
@@ -199,8 +178,8 @@ export default function RegisterPage() {
             {/* Email */}
             <div>
               <label htmlFor="register-email" style={labelStyle}>Email</label>
-              <div style={inputWrapperStyle}>
-                <Mail size={18} color="#777777" />
+              <div className="register-page__input" style={inputWrapperStyle}>
+                <Mail size={18} />
                 <input
                   id="register-email"
                   type="email"
@@ -216,8 +195,8 @@ export default function RegisterPage() {
             {/* Password */}
             <div>
               <label htmlFor="register-password" style={labelStyle}>Password</label>
-              <div style={inputWrapperStyle}>
-                <Lock size={18} color="#777777" />
+              <div className="register-page__input" style={inputWrapperStyle}>
+                <Lock size={18} />
                 <input
                   id="register-password"
                   type={showPassword ? 'text' : 'password'}
@@ -235,7 +214,7 @@ export default function RegisterPage() {
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#777777',
+                    color: 'var(--text-muted)',
                     cursor: 'pointer',
                     padding: '0.25rem',
                     display: 'flex',
@@ -246,7 +225,7 @@ export default function RegisterPage() {
               </div>
               <p style={{
                 margin: '0.4rem 0 0',
-                color: '#555',
+                color: 'var(--text-muted)',
                 fontSize: '0.75rem',
               }}>
                 Must be at least 8 characters long
@@ -307,7 +286,7 @@ export default function RegisterPage() {
 
           <p style={{
             marginTop: '1.5rem',
-            color: '#666666',
+            color: 'var(--text-muted)',
             textAlign: 'center',
             fontSize: '0.9rem',
           }}>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, Filter, MapPin, Package, Route, ShieldCheck, Truck, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, CreditCard, Filter, MapPin, Package, Route, ShieldCheck, Truck, X } from 'lucide-react';
 import { ordersApi } from '../api/orders';
+import { paymentsApi } from '../api/payments';
 import { useAuth } from '../context/useAuth';
 import { OrderSummary } from '../types';
 
@@ -64,6 +65,7 @@ export default function OrdersPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [statusFilter, setStatusFilter] = useState('');
   const [expandedOrder, setExpandedOrder] = useState<number | null>(null);
+  const [payingOrderId, setPayingOrderId] = useState<number | null>(null);
   const roleView = ROLE_VIEW[user?.role ?? 'client'];
   const HeaderIcon = roleView.icon;
 
@@ -114,6 +116,23 @@ export default function OrdersPage() {
     } catch (error: any) {
       const message = error.response?.data?.message ?? 'Order could not be cancelled.';
       alert(Array.isArray(message) ? message.join(', ') : message);
+    }
+  };
+
+  const handlePay = async (orderId: number) => {
+    setPayingOrderId(orderId);
+    try {
+      const { data } = await paymentsApi.createOrderPaymentLink(orderId);
+      if (data.demo) {
+        loadOrders();
+        return;
+      }
+      window.location.href = data.paymentLinkUrl;
+    } catch (error: any) {
+      const message = error.response?.data?.message ?? 'Payment could not be started.';
+      alert(Array.isArray(message) ? message.join(', ') : message);
+    } finally {
+      setPayingOrderId(null);
     }
   };
 
@@ -263,6 +282,12 @@ export default function OrdersPage() {
                       )}
 
                       <div className="orders-page__actions">
+                        {user?.role === 'client' && order.currentStatus === 'pending' && (
+                          <button className="store-button orders-page__action" onClick={() => handlePay(order.id)} disabled={payingOrderId === order.id}>
+                            <CreditCard size={16} />
+                            {payingOrderId === order.id ? 'Redirecting...' : 'Pay now'}
+                          </button>
+                        )}
                         {nextStatus && nextStatusConfig && (
                           <button className="store-button orders-page__action" onClick={() => handleStatusUpdate(order.id, nextStatus)}>
                             {NextStatusIcon && <NextStatusIcon size={16} />}

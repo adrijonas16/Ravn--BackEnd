@@ -3,15 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Heart, Search, Shirt } from 'lucide-react';
 import { productsApi } from '../api/products';
 import { useAuth } from '../context/useAuth';
-import { Category, Product, ProductVariant } from '../types';
+import { Category, Product } from '../types';
+import { getPriceRange } from '../utils/productPricing';
 
 const ACCENTS = ['#2457ff', '#111111', '#00a676', '#d63447', '#c5a253'];
 const SKELETON_IDS = ['product-1', 'product-2', 'product-3', 'product-4', 'product-5', 'product-6', 'product-7', 'product-8'];
-
-function getAvailableSizes(variants: ProductVariant[] = []) {
-  const available = variants.filter((variant) => variant.isActive && variant.stock > 0);
-  return [...new Map(available.map((variant) => [variant.size.id, variant])).values()];
-}
 
 export default function ProductsPage() {
   const { isAuthenticated } = useAuth();
@@ -169,7 +165,7 @@ export default function ProductsPage() {
               const images = product.images ?? [];
               const primaryImage = product.primaryImage ?? images[0]?.publicUrl;
               const hoverImage = images.find((image) => image.publicUrl !== primaryImage)?.publicUrl;
-              const sizes = getAvailableSizes(product.variants);
+              const priceRange = getPriceRange(product.variants);
               return (
                 <article key={product.id} className={`collection-card ${hoverImage ? 'collection-card--has-hover' : ''}`} style={{ animation: `slideUp 0.35s ease-out ${index * 0.03}s both` }}>
                   <Link to={`/products/${product.id}`} className="collection-card__media">
@@ -202,17 +198,7 @@ export default function ProductsPage() {
                     <p className="collection-card__description">
                       {product.description.length > 72 ? `${product.description.slice(0, 72)}...` : product.description}
                     </p>
-                    <div className="collection-card__sizes" aria-label={`Available sizes for ${product.name}`}>
-                      {sizes.length > 0 ? sizes.map((variant) => (
-                        <Link
-                          key={variant.id}
-                          to={`/products/${product.id}?variant=${variant.id}`}
-                          className="collection-card__size"
-                        >
-                          {variant.size.name}
-                        </Link>
-                      )) : <span className="collection-card__size collection-card__size--disabled">No sizes</span>}
-                    </div>
+                    <strong className="collection-card__price">{priceRange}</strong>
                   </div>
                 </article>
               );

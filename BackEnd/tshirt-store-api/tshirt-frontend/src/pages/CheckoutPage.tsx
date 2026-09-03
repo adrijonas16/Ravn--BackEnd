@@ -32,6 +32,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [savingAddress, setSavingAddress] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
   const [promoCode, setPromoCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +46,7 @@ export default function CheckoutPage() {
     try {
       const { data: cartData } = await cartApi.get();
       setCart(cartData);
+      setPendingOrderId(null);
       const { data: addressData } = await addressesApi.list();
       setAddresses(addressData);
       const defaultAddress = addressData.find((address) => address.isDefault) ?? addressData[0];
@@ -101,16 +103,26 @@ export default function CheckoutPage() {
     setPaying(true);
     setError(null);
     try {
-      const { data: order } = await ordersApi.create(
-        address.id,
-        promoCode.trim().toUpperCase() || undefined,
-      );
-      const { data: payment } = await paymentsApi.createOrderPaymentLink(order.id);
+      let orderId: number;
+      if (pendingOrderId === null) {
+        const { data: order } = await ordersApi.create(
+          address.id,
+          promoCode.trim().toUpperCase() || undefined,
+        );
+        orderId = order.id;
+        setPendingOrderId(order.id);
+      } else {
+        orderId = pendingOrderId;
+      }
+
+      const { data: payment } = await paymentsApi.createOrderPaymentLink(orderId);
       window.dispatchEvent(new Event('cart:updated'));
       if (payment.demo) {
+        setPendingOrderId(null);
         navigate('/orders');
         return;
       }
+      setPendingOrderId(null);
       window.location.href = payment.paymentLinkUrl;
     } catch (apiError: any) {
       const message = apiError.response?.data?.message ?? 'Payment could not be started.';

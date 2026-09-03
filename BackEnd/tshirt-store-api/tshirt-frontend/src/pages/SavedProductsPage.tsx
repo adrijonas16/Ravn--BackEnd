@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Heart, Shirt } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart, ShoppingBag, Shirt, X } from 'lucide-react';
 import { productsApi } from '../api/products';
-import { Product, ProductVariant } from '../types';
+import { Product } from '../types';
+import { getPriceRange } from '../utils/productPricing';
 
 const PAGE_SIZE = 8;
-
-function getAvailableSizes(variants: ProductVariant[] = []) {
-  const available = variants.filter((variant) => variant.isActive && variant.stock > 0);
-  return [...new Map(available.map((variant) => [variant.size.id, variant])).values()];
-}
 
 export default function SavedProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -52,13 +48,15 @@ export default function SavedProductsPage() {
   return (
     <main className="saved-page store-page">
       <section className="saved-page__header store-container">
-        <p className="store-kicker">Your list</p>
         <div className="saved-page__title-row">
           <div>
+            <p className="store-kicker">Your list</p>
             <h1 className="store-title">Saved products</h1>
-            <p className="store-muted">{totalItems} products saved for later.</p>
+            <p className="store-muted">{totalItems} {totalItems === 1 ? 'product' : 'products'} saved for later.</p>
           </div>
-          <Heart size={36} strokeWidth={1.5} />
+          <span className="saved-page__mark">
+            <Heart size={24} fill="currentColor" />
+          </span>
         </div>
       </section>
 
@@ -84,7 +82,7 @@ export default function SavedProductsPage() {
           <div className="saved-page__grid">
             {products.map((product) => {
               const primaryImage = product.primaryImage ?? product.images?.[0]?.publicUrl;
-              const sizes = getAvailableSizes(product.variants);
+              const priceRange = getPriceRange(product.variants);
 
               return (
                 <article key={product.id} className="saved-card store-card">
@@ -94,23 +92,31 @@ export default function SavedProductsPage() {
                     ) : (
                       <Shirt size={72} strokeWidth={1.1} />
                     )}
+                    <span className="saved-card__badge">
+                      <Heart size={14} fill="currentColor" />
+                      Saved
+                    </span>
                   </Link>
                   <div className="saved-card__body">
-                    <div>
+                    <div className="saved-card__main">
                       <p className="saved-card__category">{product.category?.name ?? 'Tee'}</p>
-                      <Link to={`/products/${product.id}`} className="saved-card__name">{product.name}</Link>
+                      <div className="saved-card__name-row">
+                        <Link to={`/products/${product.id}`} className="saved-card__name">{product.name}</Link>
+                        <strong>{priceRange}</strong>
+                      </div>
                     </div>
-                    <div className="saved-card__sizes">
-                      {sizes.length > 0 ? sizes.slice(0, 6).map((variant) => (
-                        <Link key={variant.id} to={`/products/${product.id}?variant=${variant.id}`}>
-                          {variant.size.name}
-                        </Link>
-                      )) : <span>No sizes</span>}
+                    <p className="saved-card__description">
+                      {product.description.length > 86 ? `${product.description.slice(0, 86)}...` : product.description}
+                    </p>
+                    <div className="saved-card__actions">
+                      <Link className="store-button saved-card__view" to={`/products/${product.id}`}>
+                        <ShoppingBag size={16} />
+                        View product
+                      </Link>
+                      <button type="button" className="saved-card__remove" onClick={() => void removeSaved(product.id)} aria-label={`Remove ${product.name}`}>
+                        <X size={16} />
+                      </button>
                     </div>
-                    <button type="button" className="saved-card__remove" onClick={() => void removeSaved(product.id)}>
-                      <Heart size={16} fill="currentColor" />
-                      Remove
-                    </button>
                   </div>
                 </article>
               );

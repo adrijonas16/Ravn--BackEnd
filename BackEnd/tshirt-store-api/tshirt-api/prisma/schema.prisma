@@ -410,7 +410,7 @@ model Payment {
   status                PaymentStatus @default(pending)
   provider              String        @default("stripe") @db.VarChar(30)
   providerPaymentId     String?       @unique @map("provider_payment_id") @db.VarChar(255)
-  providerPaymentLinkId String?       @map("provider_payment_link_id") @db.VarChar(255)
+  providerPaymentLinkId String?       @map("provider_payment_link_id") @db.Text
   currency              String        @db.Char(3)
   amount                Decimal       @db.Decimal(12, 2)
   paidAt                DateTime?     @map("paid_at")

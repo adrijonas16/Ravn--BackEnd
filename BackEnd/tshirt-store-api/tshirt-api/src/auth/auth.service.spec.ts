@@ -28,6 +28,7 @@ describe('AuthService', () => {
         update: jest.fn(),
         updateMany: jest.fn(),
       },
+      notification: { create: jest.fn() },
       $transaction: jest.fn((calls) => Promise.all(calls)),
     };
 
@@ -233,13 +234,23 @@ describe('AuthService', () => {
 
   describe('forgotPassword', () => {
     it('should create a reset token for existing user', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 1 });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 1,
+        email: 'test@example.com',
+      });
       prisma.passwordResetToken.create.mockResolvedValue({});
 
       const result = await service.forgotPassword('test@example.com');
 
       expect(result.message).toContain('reset link was sent');
       expect(prisma.passwordResetToken.create).toHaveBeenCalled();
+      expect(prisma.notification.create).toHaveBeenCalledWith({
+        data: {
+          userId: 1,
+          type: 'password_reset',
+          recipientEmail: 'test@example.com',
+        },
+      });
     });
 
     it('should return same message for non-existent email (no enumeration)', async () => {
@@ -267,6 +278,7 @@ describe('AuthService', () => {
         userId: 1,
         usedAt: null,
         expiresAt: new Date(Date.now() - 1000), // expired
+        user: { email: 'test@example.com' },
       });
 
       await expect(
@@ -280,6 +292,7 @@ describe('AuthService', () => {
         userId: 1,
         usedAt: new Date(),
         expiresAt: new Date(Date.now() + 60000),
+        user: { email: 'test@example.com' },
       });
 
       await expect(

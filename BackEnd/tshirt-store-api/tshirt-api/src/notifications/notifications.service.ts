@@ -26,20 +26,45 @@ export class NotificationsService {
   }
 
   async createLowStockNotifications(payload: LowStockNotificationJobDto) {
-    const managers = await this.prisma.user.findMany({
-      where: { role: { name: 'manager' }, status: 'active' },
+    const product = await this.prisma.product.findUnique({
+      where: { id: payload.productId },
+      select: {
+        id: true,
+        images: {
+          where: { isPrimary: true },
+          select: { publicUrl: true },
+          take: 1,
+        },
+      },
+    });
+    if (!product) return;
+
+    const interestedUsers = await this.prisma.user.findMany({
+      where: {
+        status: 'active',
+        productLikes: { some: { productId: payload.productId } },
+        orders: {
+          none: {
+            items: {
+              some: {
+                productVariant: { productId: payload.productId },
+              },
+            },
+          },
+        },
+      },
       select: { id: true, email: true },
     });
 
-    if (managers.length === 0) return;
+    if (interestedUsers.length === 0) return;
 
     await this.prisma.notification.createMany({
-      data: managers.map((manager) => ({
-        userId: manager.id,
+      data: interestedUsers.map((user) => ({
+        userId: user.id,
         productId: payload.productId,
         productVariantId: payload.productVariantId,
         type: 'low_stock',
-        recipientEmail: manager.email,
+        recipientEmail: user.email,
       })),
     });
   }

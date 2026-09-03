@@ -5,6 +5,13 @@ import { WebhooksService } from './webhooks.service';
 
 type StripeWebhookRequest = express.Request & { rawBody?: Buffer };
 
+function getStripePayload(req: StripeWebhookRequest) {
+  if (Buffer.isBuffer(req.rawBody)) return req.rawBody;
+  if (Buffer.isBuffer(req.body)) return req.body;
+  if (typeof req.body === 'string') return Buffer.from(req.body);
+  return Buffer.from(JSON.stringify(req.body));
+}
+
 @ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
@@ -17,9 +24,6 @@ export class WebhooksController {
     @Req() req: StripeWebhookRequest,
     @Headers('stripe-signature') signature: string,
   ) {
-    return this.webhooksService.handleWebhook(
-      req.rawBody ?? req.body,
-      signature,
-    );
+    return this.webhooksService.handleWebhook(getStripePayload(req), signature);
   }
 }

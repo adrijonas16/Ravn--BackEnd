@@ -5,8 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { NotificationsQueueService } from '../notifications/notifications-queue.service';
 import { LowStockNotificationJobDto } from '../notifications/dto/low-stock-notification-job.dto';
-
-const LOW_STOCK_THRESHOLD = 3;
+import { LOW_STOCK_THRESHOLD } from '../common/constants/inventory.constants';
 
 // ─── WEBHOOKS: Stripe nos AVISA cuando algo pasa (pago exitoso, fallido, reembolso, etc.) ───
 // Flujo: Usuario paga → Stripe procesa → Stripe envía POST a nuestro endpoint → Este servicio lo maneja
@@ -26,7 +25,6 @@ export class WebhooksService {
   ) {
     this.stripe = new Stripe(
       this.config.get('STRIPE_SECRET_KEY', 'sk_test_placeholder'),
-      { apiVersion: '2025-05-28' as any },
     );
     // STRIPE_WEBHOOK_SECRET empieza con "whsec_" — se obtiene al crear el webhook en el dashboard de Stripe
     this.webhookSecret = this.config.get(

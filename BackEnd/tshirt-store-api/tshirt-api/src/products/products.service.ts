@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -11,12 +12,17 @@ import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { UpdateProductVariantCommandDto } from './dto/update-product-variant-command.dto';
 import { CreateProductImageDto } from './dto/create-product-image.dto';
 import { UpdateProductImageCommandDto } from './dto/update-product-image-command.dto';
+import { CreateProductImageUploadDto } from './dto/create-product-image-upload.dto';
+import { StorageService } from '../storage/storage.service';
 
 // @Injectable() marca esta clase para que NestJS pueda inyectarla en otros archivos
 @Injectable()
 export class ProductsService {
   // Inyección de dependencias: Prisma se inyecta automáticamente para acceder a la DB
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private storageService?: StorageService,
+  ) {}
 
   async create(dto: CreateProductDto) {
     // Verifica que la categoría exista antes de crear el producto
@@ -249,6 +255,29 @@ export class ProductsService {
         },
       });
     });
+  }
+
+  async createImageUpload(productId: number, dto: CreateProductImageUploadDto) {
+    await this.findOne(productId);
+    if (!this.storageService) {
+      throw new ConflictException('Storage service is not available');
+    }
+
+    const upload = await this.storageService.createProductImageUploadUrl(
+      productId,
+      dto.filename,
+      dto.contentType,
+    );
+
+    const image = await this.addImage(productId, {
+      publicUrl: upload.publicUrl,
+      storageKey: upload.storageKey,
+      altText: dto.altText,
+      sortOrder: dto.sortOrder,
+      isPrimary: dto.isPrimary,
+    });
+
+    return { image, upload };
   }
 
   async updateImage(command: UpdateProductImageCommandDto) {
