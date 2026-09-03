@@ -8,11 +8,11 @@ const inputWrapperStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: '0.75rem',
-  background: '#f7f4ef',
+  background: 'var(--surface-muted)',
   borderRadius: '12px',
-  border: '1px solid #ded7cc',
+  border: '1px solid var(--border)',
   padding: '0 1rem',
-  transition: 'border-color 0.2s ease',
+  transition: 'border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease',
 };
 
 const inputStyle: React.CSSProperties = {
@@ -20,9 +20,20 @@ const inputStyle: React.CSSProperties = {
   padding: '0.85rem 0',
   border: 'none',
   background: 'transparent',
-  color: '#111111',
+  color: 'var(--text)',
   outline: 'none',
   fontSize: '0.95rem',
+  minWidth: 0,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  color: 'var(--text-muted)',
+  fontSize: '0.8rem',
+  fontWeight: 500,
+  marginBottom: '0.4rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
 };
 
 export default function LoginPage() {
@@ -50,7 +61,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
+    <div className="login-page" style={{
       minHeight: 'calc(100vh - 60px)',
       display: 'flex',
       alignItems: 'center',
@@ -58,44 +69,20 @@ export default function LoginPage() {
       padding: '2rem',
       position: 'relative',
     }}>
-      {/* Background orbs */}
-      <div style={{
-        position: 'absolute',
-        top: '20%',
-        left: '30%',
-        width: '400px',
-        height: '400px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(108, 92, 231, 0.08), transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: '20%',
-        right: '30%',
-        width: '300px',
-        height: '300px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(0, 206, 201, 0.06), transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-
       <div style={{
         width: '100%',
         maxWidth: 420,
         animation: 'scaleIn 0.4s ease-out',
       }}>
-        {/* Card with gradient border effect */}
         <div style={{
-          background: '#ffffff',
+          background: 'var(--surface)',
           borderRadius: '24px',
-          border: '1px solid #ded7cc',
-          padding: '2.5rem',
+          border: '1px solid var(--border)',
+          padding: 'clamp(1.5rem, 4vw, 2.5rem)',
           position: 'relative',
           overflow: 'hidden',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 20px 60px var(--shadow)',
         }}>
-          {/* Subtle gradient top border */}
           <div style={{
             position: 'absolute',
             top: 0,
@@ -116,7 +103,7 @@ export default function LoginPage() {
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 1rem',
-              boxShadow: '0 8px 25px rgba(108, 92, 231, 0.3)',
+              boxShadow: '0 8px 25px rgba(36, 87, 255, 0.3)',
             }}>
               <Shirt size={28} color="white" />
             </div>
@@ -124,11 +111,11 @@ export default function LoginPage() {
               margin: '0 0 0.25rem',
               fontSize: '1.5rem',
               fontWeight: 700,
-              color: '#111111',
+              color: 'var(--text)',
             }}>
               Welcome back
             </h1>
-            <p style={{ margin: 0, color: '#666666', fontSize: '0.9rem' }}>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               Sign in to your account
             </p>
           </div>
@@ -156,19 +143,11 @@ export default function LoginPage() {
           }}>
             {/* Email */}
             <div>
-              <label htmlFor="login-email" style={{
-                display: 'block',
-                color: '#666666',
-                fontSize: '0.8rem',
-                fontWeight: 500,
-                marginBottom: '0.4rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}>
+              <label htmlFor="login-email" style={labelStyle}>
                 Email
               </label>
-              <div style={inputWrapperStyle}>
-                <Mail size={18} color="#777777" />
+              <div className="login-page__input" style={inputWrapperStyle}>
+                <Mail size={18} />
                 <input
                   id="login-email"
                   type="email"
@@ -183,19 +162,11 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label htmlFor="login-password" style={{
-                display: 'block',
-                color: '#666666',
-                fontSize: '0.8rem',
-                fontWeight: 500,
-                marginBottom: '0.4rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}>
+              <label htmlFor="login-password" style={labelStyle}>
                 Password
               </label>
-              <div style={inputWrapperStyle}>
-                <Lock size={18} color="#777777" />
+              <div className="login-page__input" style={inputWrapperStyle}>
+                <Lock size={18} />
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
@@ -212,7 +183,7 @@ export default function LoginPage() {
                   style={{
                     background: 'transparent',
                     border: 'none',
-                    color: '#777777',
+                    color: 'var(--text-muted)',
                     cursor: 'pointer',
                     padding: '0.25rem',
                     display: 'flex',
@@ -223,7 +194,7 @@ export default function LoginPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.55rem' }}>
                 <Link to="/forgot-password" style={{
-                  color: '#2457ff',
+                  color: 'var(--brand)',
                   fontSize: '0.85rem',
                   fontWeight: 700,
                   textDecoration: 'none',
@@ -251,17 +222,17 @@ export default function LoginPage() {
                 gap: '0.5rem',
                 transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 marginTop: '0.5rem',
-                boxShadow: '0 4px 15px rgba(108, 92, 231, 0.3)',
+                boxShadow: '0 4px 15px rgba(36, 87, 255, 0.3)',
               }}
               onMouseEnter={e => {
                 if (!loading) {
                   e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(108, 92, 231, 0.4)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(36, 87, 255, 0.4)';
                 }
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 15px rgba(108, 92, 231, 0.3)';
+                e.currentTarget.style.boxShadow = '0 4px 15px rgba(36, 87, 255, 0.3)';
               }}
             >
               {loading ? (
@@ -287,19 +258,19 @@ export default function LoginPage() {
 
           <p style={{
             marginTop: '1.5rem',
-            color: '#666666',
+            color: 'var(--text-muted)',
             textAlign: 'center',
             fontSize: '0.9rem',
           }}>
             Don't have an account?{' '}
             <Link to="/register" style={{
-              color: '#2457ff',
+              color: 'var(--brand)',
               fontWeight: 600,
               textDecoration: 'none',
               transition: 'color 0.2s',
             }}
-              onMouseEnter={e => e.currentTarget.style.color = '#2457ff'}
-              onMouseLeave={e => e.currentTarget.style.color = '#2457ff'}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--brand)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--brand)'}
             >
               Sign up
             </Link>

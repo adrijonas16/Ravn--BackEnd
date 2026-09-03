@@ -3668,18 +3668,27 @@ body[data-theme='dark'] .cart-page__media img {
   }
 }
 
+.login-page__input,
 .register-page__input {
   color: var(--text-muted);
 }
 
+.login-page__input:focus-within,
 .register-page__input:focus-within {
   border-color: var(--brand) !important;
   box-shadow: 0 0 0 4px rgba(36, 87, 255, 0.12);
 }
 
+.login-page__input input:focus,
 .register-page__input input:focus {
   box-shadow: none;
   border-color: transparent;
+}
+
+body[data-theme='dark'] .login-page,
+body[data-theme='dark'] .register-page {
+  background: var(--page-bg);
+  color: var(--text);
 }
 
 body[data-theme='dark'] .password-page,
