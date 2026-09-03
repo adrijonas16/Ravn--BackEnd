@@ -85,12 +85,21 @@ function InfoSection({
 function ProductGallery({
   product,
   accent,
+  selectedSku,
 }: {
   product: ProductDetail;
   accent: string;
+  selectedSku: ProductVariant | null;
 }) {
-  const heroImages = product.images.length > 0
-    ? product.images.slice(0, 4).map((image) => ({ key: `image-${image.id}`, image }))
+  const selectedVariantImages = selectedSku
+    ? product.images.filter((image) => image.productVariantId === selectedSku.id)
+    : [];
+  const productGalleryImages = product.images.filter(
+    (image) => !image.productVariantId,
+  );
+  const galleryImages = [...selectedVariantImages, ...productGalleryImages];
+  const heroImages = galleryImages.length > 0
+    ? galleryImages.slice(0, 4).map((image) => ({ key: `image-${image.id}`, image }))
     : [0, 1, 2, 3].map((slot) => ({ key: `placeholder-${slot}`, image: null }));
 
   return (
@@ -557,7 +566,7 @@ export default function ProductDetailPage() {
           gap: 'clamp(1.5rem, 4vw, 4rem)',
           alignItems: 'start',
         }}>
-          <ProductGallery product={product} accent={accent} />
+          <ProductGallery product={product} accent={accent} selectedSku={selectedSku} />
           <ProductPurchasePanel
             accent={accent}
             adding={adding}

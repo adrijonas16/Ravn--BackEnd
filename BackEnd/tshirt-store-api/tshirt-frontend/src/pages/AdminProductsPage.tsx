@@ -27,6 +27,7 @@ const emptyImageForm: ProductImagePayload = {
   altText: '',
   sortOrder: 0,
   isPrimary: false,
+  productVariantId: undefined,
 };
 
 const emptyVariantForm: ProductVariantPayload = {
@@ -47,6 +48,7 @@ interface AdminProductsState {
   selectedProduct: ProductDetail | null;
   productForm: ProductPayload;
   imageForm: ProductImagePayload;
+  imageUploadFile: File | null;
   variantForm: ProductVariantPayload;
   searchTerm: string;
   categoryFilter: string;
@@ -66,6 +68,7 @@ const initialAdminProductsState: AdminProductsState = {
   selectedProduct: null,
   productForm: emptyProductForm,
   imageForm: emptyImageForm,
+  imageUploadFile: null,
   variantForm: emptyVariantForm,
   searchTerm: '',
   categoryFilter: '',
@@ -116,7 +119,14 @@ function normalizeImageForm(form: ProductImagePayload): ProductImagePayload {
     altText: form.altText?.trim() || undefined,
     sortOrder: Number(form.sortOrder ?? 0),
     isPrimary: !!form.isPrimary,
+    productVariantId: form.productVariantId
+      ? Number(form.productVariantId)
+      : undefined,
   };
+}
+
+function formatVariantLabel(variant: ProductVariant): string {
+  return `${variant.size.name} / ${variant.color.name} - ${variant.sku}`;
 }
 
 function normalizeVariantForm(form: ProductVariantPayload): ProductVariantPayload {
@@ -178,20 +188,28 @@ function ProductForm({
 function ImageManager({
   images,
   imageForm,
+  imageUploadFile,
   saving,
+  variants,
   onAdd,
   onChange,
   onDelete,
+  onFileChange,
   onPrimary,
 }: {
   images: ProductImage[];
   imageForm: ProductImagePayload;
+  imageUploadFile: File | null;
   saving: boolean;
+  variants: ProductVariant[];
   onAdd: () => void;
   onChange: (form: ProductImagePayload) => void;
   onDelete: (imageId: number) => void;
+  onFileChange: (file: File | null) => void;
   onPrimary: (imageId: number) => void;
 }) {
+  const variantById = new Map(variants.map((variant) => [variant.id, variant]));
+
   return (
     <section className="admin-products__section">
       <div className="admin-products__section-header">
@@ -199,8 +217,32 @@ function ImageManager({
       </div>
       <form className="admin-products__form" onSubmit={(event) => { event.preventDefault(); onAdd(); }}>
         <label className="admin-products__wide-field">
+          <span>Upload image</span>
+          <input type="file" accept="image/*" onChange={(event) => onFileChange(event.target.files?.[0] ?? null)} />
+          {imageUploadFile && <small>{imageUploadFile.name}</small>}
+        </label>
+        <label className="admin-products__wide-field">
           <span>Image URL</span>
-          <input value={imageForm.publicUrl} onChange={(event) => onChange({ ...imageForm, publicUrl: event.target.value })} required />
+          <input
+            value={imageForm.publicUrl}
+            onChange={(event) => onChange({ ...imageForm, publicUrl: event.target.value })}
+            required={!imageUploadFile}
+          />
+        </label>
+        <label>
+          <span>Variant</span>
+          <select
+            value={imageForm.productVariantId ?? ''}
+            onChange={(event) => onChange({
+              ...imageForm,
+              productVariantId: event.target.value ? Number(event.target.value) : undefined,
+            })}
+          >
+            <option value="">Product gallery</option>
+            {variants.map((variant) => (
+              <option key={variant.id} value={variant.id}>{formatVariantLabel(variant)}</option>
+            ))}
+          </select>
         </label>
         <label>
           <span>Alt text</span>
@@ -227,6 +269,9 @@ function ImageManager({
             <div>
               <strong>{image.isPrimary ? 'Primary image' : `Sort ${image.sortOrder}`}</strong>
               <small>{image.altText || 'No alt text'}</small>
+              {image.productVariantId && variantById.has(image.productVariantId) && (
+                <small>Variant: {formatVariantLabel(variantById.get(image.productVariantId)!)}</small>
+              )}
             </div>
             <div className="admin-products__row-actions">
               {!image.isPrimary && <button type="button" onClick={() => onPrimary(image.id)}>Make primary</button>}
@@ -435,6 +480,7 @@ function ProductEditorDrawer({
   colors,
   editorOpen,
   imageForm,
+  imageUploadFile,
   productForm,
   saving,
   selectedProduct,
@@ -446,6 +492,7 @@ function ProductEditorDrawer({
   onClose,
   onDeleteImage,
   onDeleteProduct,
+  onImageFileChange,
   onImageFormChange,
   onPrimaryImage,
   onProductFormChange,
@@ -457,6 +504,7 @@ function ProductEditorDrawer({
   colors: Color[];
   editorOpen: boolean;
   imageForm: ProductImagePayload;
+  imageUploadFile: File | null;
   productForm: ProductPayload;
   saving: boolean;
   selectedProduct: ProductDetail | null;
@@ -468,6 +516,7 @@ function ProductEditorDrawer({
   onClose: () => void;
   onDeleteImage: (imageId: number) => void;
   onDeleteProduct: () => void;
+  onImageFileChange: (file: File | null) => void;
   onImageFormChange: (form: ProductImagePayload) => void;
   onPrimaryImage: (imageId: number) => void;
   onProductFormChange: (form: ProductPayload) => void;
@@ -502,10 +551,13 @@ function ProductEditorDrawer({
             <ImageManager
               images={selectedProduct.images}
               imageForm={imageForm}
+              imageUploadFile={imageUploadFile}
               saving={saving}
+              variants={selectedProduct.variants}
               onAdd={onAddImage}
               onChange={onImageFormChange}
               onDelete={onDeleteImage}
+              onFileChange={onImageFileChange}
               onPrimary={onPrimaryImage}
             />
             <VariantManager
@@ -542,6 +594,7 @@ export default function AdminProductsPage() {
     selectedProduct,
     productForm,
     imageForm,
+    imageUploadFile,
     variantForm,
     searchTerm,
     categoryFilter,
@@ -599,6 +652,7 @@ export default function AdminProductsPage() {
         selectedProduct: data,
         productForm: toProductForm(data),
         imageForm: emptyImageForm,
+        imageUploadFile: null,
         variantForm: emptyVariantForm,
         editorOpen: true,
       });
@@ -655,10 +709,37 @@ export default function AdminProductsPage() {
     if (!selectedProductId) return;
     setState({ saving: true, message: '', error: '' });
     try {
-      await productsApi.addImage(selectedProductId, normalizeImageForm(imageForm));
+      const payload = normalizeImageForm(imageForm);
+      if (imageUploadFile) {
+        const contentType = imageUploadFile.type || 'application/octet-stream';
+        const { data } = await productsApi.createImageUpload(selectedProductId, {
+          filename: imageUploadFile.name,
+          contentType,
+          altText: payload.altText,
+          sortOrder: payload.sortOrder,
+          isPrimary: payload.isPrimary,
+          productVariantId: payload.productVariantId,
+        });
+        const uploadResponse = await fetch(data.upload.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: imageUploadFile,
+        });
+
+        if (!uploadResponse.ok) {
+          await productsApi.removeImage(selectedProductId, data.image.id);
+          throw new Error('Image upload failed.');
+        }
+      } else {
+        await productsApi.addImage(selectedProductId, payload);
+      }
       await selectProduct(selectedProductId);
       await loadAdminData();
-      setState({ imageForm: emptyImageForm, message: 'Image added.' });
+      setState({
+        imageForm: emptyImageForm,
+        imageUploadFile: null,
+        message: 'Image added.',
+      });
     } catch (apiError: any) {
       setState({ error: apiError.response?.data?.message ?? 'Image could not be saved.' });
     } finally {
@@ -719,6 +800,7 @@ export default function AdminProductsPage() {
       selectedProduct: null,
       productForm: { ...emptyProductForm, categoryId: categories[0]?.id ?? 0 },
       imageForm: emptyImageForm,
+      imageUploadFile: null,
       variantForm: emptyVariantForm,
       editorOpen: true,
       message: '',
@@ -773,6 +855,7 @@ export default function AdminProductsPage() {
           colors={colors}
           editorOpen={editorOpen}
           imageForm={imageForm}
+          imageUploadFile={imageUploadFile}
           productForm={productForm}
           saving={saving}
           selectedProduct={selectedProduct}
@@ -784,6 +867,7 @@ export default function AdminProductsPage() {
           onClose={closeEditor}
           onDeleteImage={deleteImage}
           onDeleteProduct={deleteProduct}
+          onImageFileChange={(nextImageUploadFile) => setState({ imageUploadFile: nextImageUploadFile })}
           onImageFormChange={(nextImageForm) => setState({ imageForm: nextImageForm })}
           onPrimaryImage={setPrimaryImage}
           onProductFormChange={(nextProductForm) => setState({ productForm: nextProductForm })}

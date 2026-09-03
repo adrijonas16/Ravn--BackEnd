@@ -23,6 +23,26 @@ export interface ProductImagePayload {
   altText?: string;
   sortOrder?: number;
   isPrimary?: boolean;
+  productVariantId?: number;
+}
+
+export interface ProductImageUploadPayload {
+  filename: string;
+  contentType: string;
+  altText?: string;
+  sortOrder?: number;
+  isPrimary?: boolean;
+  productVariantId?: number;
+}
+
+export interface ProductImageUploadResponse {
+  image: ProductImage;
+  upload: {
+    uploadUrl: string;
+    publicUrl: string;
+    storageKey: string;
+    expiresInSeconds: number;
+  };
 }
 
 export const productsApi = {
@@ -61,6 +81,9 @@ export const productsApi = {
 
   addImage: (productId: number, data: ProductImagePayload) =>
     api.post<ProductImage>(`/products/${productId}/images`, data),
+
+  createImageUpload: (productId: number, data: ProductImageUploadPayload) =>
+    api.post<ProductImageUploadResponse>(`/products/${productId}/images/upload-url`, data),
 
   updateImage: (productId: number, imageId: number, data: Partial<ProductImagePayload>) =>
     api.patch<ProductImage>(`/products/${productId}/images/${imageId}`, data),

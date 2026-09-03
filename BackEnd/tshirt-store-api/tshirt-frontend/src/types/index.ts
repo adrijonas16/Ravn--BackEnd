@@ -54,6 +54,7 @@ export interface Color {
 
 export interface ProductImage {
   id: number;
+  productVariantId?: number | null;
   storageKey?: string;
   publicUrl: string;
   altText?: string | null;

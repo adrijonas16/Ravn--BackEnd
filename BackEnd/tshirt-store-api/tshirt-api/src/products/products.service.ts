@@ -235,11 +235,15 @@ export class ProductsService {
 
   async addImage(productId: number, dto: CreateProductImageDto) {
     await this.findOne(productId);
+    await this.ensureProductVariantBelongsToProduct(
+      productId,
+      dto.productVariantId,
+    );
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.isPrimary) {
         await tx.productImage.updateMany({
-          where: { productId, isPrimary: true },
+          where: this.buildImagePrimaryScope(productId, dto.productVariantId),
           data: { isPrimary: false },
         });
       }
@@ -247,6 +251,7 @@ export class ProductsService {
       return tx.productImage.create({
         data: {
           productId,
+          productVariantId: dto.productVariantId,
           publicUrl: dto.publicUrl,
           storageKey: dto.storageKey ?? `external/${productId}/${Date.now()}`,
           altText: dto.altText,
@@ -267,6 +272,7 @@ export class ProductsService {
       productId,
       dto.filename,
       dto.contentType,
+      dto.productVariantId,
     );
 
     const image = await this.addImage(productId, {
@@ -275,6 +281,7 @@ export class ProductsService {
       altText: dto.altText,
       sortOrder: dto.sortOrder,
       isPrimary: dto.isPrimary,
+      productVariantId: dto.productVariantId,
     });
 
     return { image, upload };
@@ -282,12 +289,26 @@ export class ProductsService {
 
   async updateImage(command: UpdateProductImageCommandDto) {
     const { productId, imageId, dto } = command;
-    await this.ensureProductImage(productId, imageId);
+    const currentImage = await this.ensureProductImage(productId, imageId);
+    const nextProductVariantId =
+      dto.productVariantId === undefined
+        ? currentImage.productVariantId
+        : dto.productVariantId;
+    await this.ensureProductVariantBelongsToProduct(
+      productId,
+      nextProductVariantId ?? undefined,
+    );
 
     return this.prisma.$transaction(async (tx) => {
       if (dto.isPrimary) {
         await tx.productImage.updateMany({
-          where: { productId, isPrimary: true, NOT: { id: imageId } },
+          where: {
+            ...this.buildImagePrimaryScope(
+              productId,
+              nextProductVariantId ?? undefined,
+            ),
+            NOT: { id: imageId },
+          },
           data: { isPrimary: false },
         });
       }
@@ -310,6 +331,29 @@ export class ProductsService {
     });
     if (!image) throw new NotFoundException('Product image not found');
     return image;
+  }
+
+  private async ensureProductVariantBelongsToProduct(
+    productId: number,
+    productVariantId?: number,
+  ) {
+    if (!productVariantId) return;
+
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: productVariantId, productId },
+    });
+    if (!variant) throw new NotFoundException('Product variant not found');
+  }
+
+  private buildImagePrimaryScope(
+    productId: number,
+    productVariantId?: number | null,
+  ) {
+    return {
+      productId,
+      productVariantId: productVariantId ?? null,
+      isPrimary: true,
+    };
   }
 
   // Genera un slug único: "Camiseta Azul" → "camiseta-azul-k5f3x2"

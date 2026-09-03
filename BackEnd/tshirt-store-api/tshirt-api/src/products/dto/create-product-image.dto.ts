@@ -25,6 +25,15 @@ export class CreateProductImageDto {
   @IsString()
   storageKey?: string;
 
+  @ApiPropertyOptional({
+    example: 12,
+    description: 'Optional variant this image represents',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  productVariantId?: number;
+
   @ApiPropertyOptional({ example: 0 })
   @IsOptional()
   @IsInt()

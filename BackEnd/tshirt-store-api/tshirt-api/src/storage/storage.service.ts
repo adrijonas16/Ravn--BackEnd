@@ -22,9 +22,14 @@ export class StorageService {
     productId: number,
     filename: string,
     contentType: string,
+    productVariantId?: number,
   ) {
     const bucket = this.getBucket();
-    const storageKey = this.buildProductImageKey(productId, filename);
+    const storageKey = this.buildProductImageKey(
+      productId,
+      filename,
+      productVariantId,
+    );
     const uploadUrl = await getSignedUrl(
       this.s3,
       new PutObjectCommand({
@@ -59,13 +64,22 @@ export class StorageService {
     return { accessKeyId, secretAccessKey };
   }
 
-  private buildProductImageKey(productId: number, filename: string) {
+  private buildProductImageKey(
+    productId: number,
+    filename: string,
+    productVariantId?: number,
+  ) {
     const sanitizedFilename = filename
       .toLowerCase()
       .replace(/[^a-z0-9.-]+/g, '-')
       .replace(/^-+|-+$/g, '');
 
-    return `products/${productId}/${randomUUID()}-${sanitizedFilename || 'image'}`;
+    const imageName = `${randomUUID()}-${sanitizedFilename || 'image'}`;
+    if (productVariantId) {
+      return `products/${productId}/variants/${productVariantId}/${imageName}`;
+    }
+
+    return `products/${productId}/${imageName}`;
   }
 
   private buildPublicUrl(bucket: string, storageKey: string) {

@@ -294,6 +294,7 @@ describe('ProductsService', () => {
       prisma.productImage.create.mockResolvedValue({
         id: 10,
         productId: 1,
+        productVariantId: null,
         publicUrl: 'https://example.com/tee.jpg',
         isPrimary: true,
       });
@@ -305,13 +306,14 @@ describe('ProductsService', () => {
 
       expect(result.id).toBe(10);
       expect(prisma.productImage.updateMany).toHaveBeenCalledWith({
-        where: { productId: 1, isPrimary: true },
+        where: { productId: 1, productVariantId: null, isPrimary: true },
         data: { isPrimary: false },
       });
       expect(prisma.productImage.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             productId: 1,
+            productVariantId: undefined,
             publicUrl: 'https://example.com/tee.jpg',
             isPrimary: true,
           }),
@@ -319,8 +321,62 @@ describe('ProductsService', () => {
       );
     });
 
+    it('should add a variant image and clear primary only for that variant', async () => {
+      prisma.product.findFirst.mockResolvedValue({ id: 1 });
+      prisma.productVariant.findFirst.mockResolvedValue({
+        id: 7,
+        productId: 1,
+      });
+      prisma.productImage.create.mockResolvedValue({
+        id: 11,
+        productId: 1,
+        productVariantId: 7,
+        publicUrl: 'https://example.com/tee-navy.jpg',
+        isPrimary: true,
+      });
+
+      const result = await service.addImage(1, {
+        publicUrl: 'https://example.com/tee-navy.jpg',
+        productVariantId: 7,
+        isPrimary: true,
+      });
+
+      expect(result.productVariantId).toBe(7);
+      expect(prisma.productVariant.findFirst).toHaveBeenCalledWith({
+        where: { id: 7, productId: 1 },
+      });
+      expect(prisma.productImage.updateMany).toHaveBeenCalledWith({
+        where: { productId: 1, productVariantId: 7, isPrimary: true },
+        data: { isPrimary: false },
+      });
+      expect(prisma.productImage.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            productId: 1,
+            productVariantId: 7,
+          }),
+        }),
+      );
+    });
+
+    it('should reject images for variants outside the product', async () => {
+      prisma.product.findFirst.mockResolvedValue({ id: 1 });
+      prisma.productVariant.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.addImage(1, {
+          publicUrl: 'https://example.com/tee.jpg',
+          productVariantId: 999,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
     it('should update a product image by product ownership', async () => {
-      prisma.productImage.findFirst.mockResolvedValue({ id: 10, productId: 1 });
+      prisma.productImage.findFirst.mockResolvedValue({
+        id: 10,
+        productId: 1,
+        productVariantId: null,
+      });
       prisma.productImage.update.mockResolvedValue({
         id: 10,
         isPrimary: true,
@@ -334,7 +390,12 @@ describe('ProductsService', () => {
 
       expect(result.isPrimary).toBe(true);
       expect(prisma.productImage.updateMany).toHaveBeenCalledWith({
-        where: { productId: 1, isPrimary: true, NOT: { id: 10 } },
+        where: {
+          productId: 1,
+          productVariantId: null,
+          isPrimary: true,
+          NOT: { id: 10 },
+        },
         data: { isPrimary: false },
       });
     });
