@@ -50,6 +50,16 @@ async function refreshAccessToken(): Promise<string> {
   return data.accessToken;
 }
 
+function getRefreshPromise(): Promise<string> {
+  if (refreshPromise) return refreshPromise;
+
+  const pendingRefresh = refreshAccessToken().finally(() => {
+    refreshPromise = null;
+  });
+  refreshPromise = pendingRefresh;
+  return pendingRefresh;
+}
+
 // Interceptor de request: adjunta el token JWT automáticamente a cada petición
 // Así no tienes que escribir headers: { Authorization: ... } en cada llamada
 api.interceptors.request.use((config) => {
@@ -75,10 +85,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        refreshPromise ??= refreshAccessToken().finally(() => {
-          refreshPromise = null;
-        });
-        const newAccessToken = await refreshPromise;
+        const newAccessToken = await getRefreshPromise();
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return api(originalRequest);
       } catch {
