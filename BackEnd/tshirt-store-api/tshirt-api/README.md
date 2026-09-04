@@ -1,98 +1,187 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# T-Shirt Store API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS backend for the T-Shirt Store challenge. It exposes authentication,
+catalog, cart, checkout, orders, delivery, notifications, and Stripe webhook
+flows backed by PostgreSQL, Prisma, Redis/BullMQ, and JWT authentication.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Requirements
 
-## Description
+- Node.js 20+
+- npm
+- Docker and Docker Compose
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Environment
 
-## Project setup
+Create a local `.env` file from the example:
 
 ```bash
-$ npm install
+cp .env.example .env
 ```
 
-## Compile and run the project
+The default `.env.example` values are ready for local Docker:
+
+- PostgreSQL: `127.0.0.1:5433`
+- Redis: `127.0.0.1:6379`
+- API: `http://localhost:3000`
+
+For real Stripe checkout/webhook testing, replace these placeholders:
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_SUCCESS_URL`
+- `STRIPE_CANCEL_URL`
+
+AWS S3 variables are only required for real product image upload storage.
+
+## Local Setup
+
+Install dependencies:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
 ```
 
-## Run tests
+Start PostgreSQL and Redis:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up -d postgres redis
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Run Prisma migrations:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npx prisma migrate deploy
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Generate Prisma Client if needed:
 
-## Resources
+```bash
+npx prisma generate
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+Seed the database:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+npm run seed
+```
 
-## Support
+Start the API in watch mode:
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+npm run start:dev
+```
 
-## Stay in touch
+The API listens on `http://localhost:3000` by default.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Swagger docs are available at:
 
-## License
+```text
+http://localhost:3000/api/docs
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Verification Commands
+
+Run unit tests:
+
+```bash
+npm run test
+```
+
+Run e2e tests:
+
+```bash
+npm run test:e2e
+```
+
+Run test coverage:
+
+```bash
+npm run test:cov
+```
+
+Run the production build:
+
+```bash
+npm run build
+```
+
+Run lint:
+
+```bash
+npm run lint
+```
+
+Format source and test files:
+
+```bash
+npm run format
+```
+
+## E2E Test Database
+
+The e2e suite defaults to a dedicated PostgreSQL schema inside the local
+database:
+
+```text
+postgresql://postgres:pass_nerdery@127.0.0.1:5433/tshirt_store?schema=tshirt_store_test
+```
+
+Override it with `TEST_DATABASE_URL` when needed:
+
+```bash
+TEST_DATABASE_URL="postgresql://postgres:pass_nerdery@127.0.0.1:5433/tshirt_store?schema=tshirt_store_test" npm run test:e2e
+```
+
+The e2e command sets `QUEUES_ENABLED=false`, so Redis workers do not process
+background jobs during test execution.
+
+## Useful Prisma Commands
+
+Create a migration during development:
+
+```bash
+npx prisma migrate dev --name <migration_name>
+```
+
+Reset the local database and apply seed data:
+
+```bash
+npx prisma migrate reset
+```
+
+Open Prisma Studio:
+
+```bash
+npx prisma studio
+```
+
+## Production Run
+
+Build and run the compiled API:
+
+```bash
+npm run build
+npm run start:prod
+```
+
+Required production services:
+
+- PostgreSQL reachable through `DATABASE_URL`
+- Redis reachable through `REDIS_URL` or `REDIS_HOST`/`REDIS_PORT`
+- Stripe keys and webhook secret configured in the environment
+- Strong `JWT_SECRET`
+
+## Main Scripts
+
+```text
+npm run start          # start NestJS once
+npm run start:dev      # start NestJS in watch mode
+npm run start:prod     # run compiled app from dist
+npm run build          # compile TypeScript
+npm run lint           # eslint with autofix
+npm run format         # prettier write
+npm run test           # unit tests
+npm run test:e2e       # e2e tests
+npm run test:cov       # coverage
+npm run seed           # seed Prisma data
+```
