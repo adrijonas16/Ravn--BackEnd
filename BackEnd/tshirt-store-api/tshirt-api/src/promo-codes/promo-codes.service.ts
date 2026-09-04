@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -6,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePromoCodeDto } from './dto/create-promo-code.dto';
 import { ListPromoCodesQueryDto } from './dto/list-promo-codes-query.dto';
+import { PreviewPromoCodeDto } from './dto/preview-promo-code.dto';
 import { UpdatePromoCodeDto } from './dto/update-promo-code.dto';
 
 @Injectable()
@@ -85,6 +87,71 @@ export class PromoCodesService {
     });
 
     return this.formatPromoCode(updated);
+  }
+
+  async previewForCart(userId: number, dto: PreviewPromoCodeDto) {
+    const code = dto.code.trim().toUpperCase();
+    if (!code) throw new BadRequestException('Promo code is required');
+
+    const cart = await this.prisma.cart.findFirst({
+      where: { userId, status: 'active' },
+      include: {
+        items: {
+          include: {
+            productVariant: true,
+          },
+        },
+      },
+    });
+
+    if (!cart || cart.items.length === 0) {
+      throw new BadRequestException('Cart is empty');
+    }
+
+    const subtotal = cart.items.reduce(
+      (sum, item) => sum + Number(item.productVariant.price) * item.quantity,
+      0,
+    );
+    const promo = await this.prisma.promoCode.findUnique({
+      where: { code },
+    });
+
+    if (!promo) throw new BadRequestException('Promo code not found');
+    if (!promo.isActive)
+      throw new BadRequestException('Promo code is disabled');
+    if (promo.expiresAt <= new Date()) {
+      throw new BadRequestException('Promo code has expired');
+    }
+    if (
+      promo.minimumPurchaseAmount &&
+      subtotal < Number(promo.minimumPurchaseAmount)
+    ) {
+      throw new BadRequestException(
+        `Minimum purchase amount is $${Number(promo.minimumPurchaseAmount).toFixed(2)}`,
+      );
+    }
+
+    const redemptionCount = await this.prisma.promoCodeRedemption.count({
+      where: { promoCodeId: promo.id },
+    });
+    if (redemptionCount >= promo.usageLimit) {
+      throw new BadRequestException('Promo code usage limit reached');
+    }
+
+    const rawDiscount =
+      promo.discountType === 'percentage'
+        ? subtotal * (Number(promo.discountValue) / 100)
+        : Number(promo.discountValue);
+    const discountAmount = Math.min(rawDiscount, subtotal);
+
+    return {
+      code: promo.code,
+      discountType: promo.discountType,
+      discountValue: Number(promo.discountValue),
+      subtotal,
+      discountAmount,
+      totalAmount: subtotal - discountAmount,
+    };
   }
 
   private formatPromoCode(promo: any) {

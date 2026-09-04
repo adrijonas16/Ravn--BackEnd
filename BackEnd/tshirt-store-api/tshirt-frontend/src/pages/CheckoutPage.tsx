@@ -5,6 +5,7 @@ import { addressesApi } from '../api/addresses';
 import { cartApi } from '../api/cart';
 import { ordersApi } from '../api/orders';
 import { paymentsApi } from '../api/payments';
+import { promoCodesApi, PromoPreview } from '../api/promoCodes';
 import { useAuth } from '../context/useAuth';
 import { Address, Cart } from '../types';
 
@@ -34,6 +35,8 @@ export default function CheckoutPage() {
   const [paying, setPaying] = useState(false);
   const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
   const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<PromoPreview | null>(null);
+  const [applyingPromo, setApplyingPromo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,6 +50,7 @@ export default function CheckoutPage() {
       const { data: cartData } = await cartApi.get();
       setCart(cartData);
       setPendingOrderId(null);
+      setAppliedPromo(null);
       const { data: addressData } = await addressesApi.list();
       setAddresses(addressData);
       const defaultAddress = addressData.find((address) => address.isDefault) ?? addressData[0];
@@ -92,7 +96,41 @@ export default function CheckoutPage() {
     }
   };
 
+  const updatePromoCode = (value: string) => {
+    setPromoCode(value.toUpperCase());
+    setAppliedPromo(null);
+  };
+
+  const applyPromoCode = async () => {
+    const normalizedCode = promoCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      setAppliedPromo(null);
+      setError('Enter a promo code first.');
+      return;
+    }
+
+    setApplyingPromo(true);
+    setError(null);
+    try {
+      const { data } = await promoCodesApi.preview(normalizedCode);
+      setAppliedPromo(data);
+      setPromoCode(data.code);
+    } catch (apiError: any) {
+      const message = apiError.response?.data?.message ?? 'Promo code could not be applied.';
+      setAppliedPromo(null);
+      setError(Array.isArray(message) ? message.join(', ') : message);
+    } finally {
+      setApplyingPromo(false);
+    }
+  };
+
   const payNow = async () => {
+    const normalizedPromoCode = promoCode.trim().toUpperCase();
+    if (normalizedPromoCode && appliedPromo?.code !== normalizedPromoCode) {
+      setError('Apply the promo code before starting payment.');
+      return;
+    }
+
     const address = addresses.find((item) => item.id === selectedAddressId);
     if (!address) {
       setShowAddressForm(true);
@@ -107,7 +145,7 @@ export default function CheckoutPage() {
       if (pendingOrderId === null) {
         const { data: order } = await ordersApi.create(
           address.id,
-          promoCode.trim().toUpperCase() || undefined,
+          appliedPromo?.code,
         );
         orderId = order.id;
         setPendingOrderId(order.id);
@@ -231,11 +269,24 @@ export default function CheckoutPage() {
             <div className="checkout-page__promo">
               <input
                 value={promoCode}
-                onChange={(event) => setPromoCode(event.target.value)}
+                onChange={(event) => updatePromoCode(event.target.value)}
                 placeholder="Promo code"
                 aria-label="Promo code"
               />
+              <button
+                className="store-button store-button--secondary checkout-page__promo-button"
+                disabled={applyingPromo || !promoCode.trim()}
+                onClick={applyPromoCode}
+              >
+                {applyingPromo ? 'Applying...' : 'Apply code'}
+              </button>
             </div>
+            {appliedPromo && (
+              <div className="checkout-page__discount-note">
+                <strong>{appliedPromo.code}</strong>
+                <span>Discount -${appliedPromo.discountAmount.toFixed(2)}</span>
+              </div>
+            )}
             <button className="store-button checkout-page__pay-button" disabled={paying} onClick={payNow}>
               <CreditCard size={18} />
               {paying ? 'Redirecting...' : 'Pay now'}
@@ -265,13 +316,19 @@ export default function CheckoutPage() {
               <span>Subtotal</span>
               <strong>${cart.totalAmount.toFixed(2)}</strong>
             </div>
+            {appliedPromo && (
+              <div className="checkout-page__total-row checkout-page__total-row--discount">
+                <span>Discount</span>
+                <strong>-${appliedPromo.discountAmount.toFixed(2)}</strong>
+              </div>
+            )}
             <div className="checkout-page__total-row">
               <span>Shipping</span>
               <strong>Free</strong>
             </div>
             <div className="checkout-page__grand-total">
               <span>Total</span>
-              <strong>${cart.totalAmount.toFixed(2)}</strong>
+              <strong>${(appliedPromo?.totalAmount ?? cart.totalAmount).toFixed(2)}</strong>
             </div>
           </div>
         </aside>

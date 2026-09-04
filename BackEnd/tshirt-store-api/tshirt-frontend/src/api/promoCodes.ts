@@ -11,6 +11,15 @@ export interface PromoCodePayload {
   isActive?: boolean;
 }
 
+export interface PromoPreview {
+  code: string;
+  discountType: 'percentage' | 'fixed_amount';
+  discountValue: number;
+  subtotal: number;
+  discountAmount: number;
+  totalAmount: number;
+}
+
 export const promoCodesApi = {
   list: (params?: { page?: number; limit?: number }) =>
     api.get<PaginatedResponse<PromoCode>>('/promo-codes', { params }),
@@ -20,4 +29,7 @@ export const promoCodesApi = {
 
   update: (id: number, data: Partial<Pick<PromoCodePayload, 'expiresAt' | 'usageLimit' | 'isActive'>>) =>
     api.patch<PromoCode>(`/promo-codes/${id}`, data),
+
+  preview: (code: string) =>
+    api.post<PromoPreview>('/promo-codes/preview', { code }),
 };

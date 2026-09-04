@@ -91,29 +91,40 @@ export class OrdersService {
     // Lógica de código promocional: valida que esté activo, no expirado, y que
     // el subtotal cumpla el mínimo de compra. También verifica límite de usos.
     if (dto.promoCode) {
+      const code = dto.promoCode.trim().toUpperCase();
       const promo = await this.prisma.promoCode.findUnique({
-        where: { code: dto.promoCode },
+        where: { code },
       });
-      if (
-        promo &&
-        promo.isActive &&
-        promo.expiresAt > new Date() &&
-        (!promo.minimumPurchaseAmount ||
-          subtotal >= Number(promo.minimumPurchaseAmount))
-      ) {
-        const redemptionCount = await this.prisma.promoCodeRedemption.count({
-          where: { promoCodeId: promo.id },
-        });
-        if (redemptionCount < promo.usageLimit) {
-          promoCodeId = promo.id;
-          // Descuento porcentual o fijo, nunca mayor al subtotal
-          discountAmount =
-            promo.discountType === 'percentage'
-              ? subtotal * (Number(promo.discountValue) / 100)
-              : Number(promo.discountValue);
-          discountAmount = Math.min(discountAmount, subtotal);
-        }
+      if (!promo) throw new BadRequestException('Promo code not found');
+      if (!promo.isActive) {
+        throw new BadRequestException('Promo code is disabled');
       }
+      if (promo.expiresAt <= new Date()) {
+        throw new BadRequestException('Promo code has expired');
+      }
+      if (
+        promo.minimumPurchaseAmount &&
+        subtotal < Number(promo.minimumPurchaseAmount)
+      ) {
+        throw new BadRequestException(
+          `Minimum purchase amount is $${Number(promo.minimumPurchaseAmount).toFixed(2)}`,
+        );
+      }
+
+      const redemptionCount = await this.prisma.promoCodeRedemption.count({
+        where: { promoCodeId: promo.id },
+      });
+      if (redemptionCount >= promo.usageLimit) {
+        throw new BadRequestException('Promo code usage limit reached');
+      }
+
+      promoCodeId = promo.id;
+      // Descuento porcentual o fijo, nunca mayor al subtotal
+      discountAmount =
+        promo.discountType === 'percentage'
+          ? subtotal * (Number(promo.discountValue) / 100)
+          : Number(promo.discountValue);
+      discountAmount = Math.min(discountAmount, subtotal);
     }
 
     const totalAmount = subtotal - discountAmount;

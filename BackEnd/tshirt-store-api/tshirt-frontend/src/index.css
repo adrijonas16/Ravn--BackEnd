@@ -1521,12 +1521,14 @@ input::placeholder {
   align-items: start;
   padding: 0.9rem;
   border: 1px solid #ded7cc;
+  background: var(--surface-elevated);
+  color: var(--text);
   cursor: pointer;
 }
 
 .checkout-page__address--selected {
   border-color: #111111;
-  background: #f7f4ef;
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
 }
 
 .checkout-page__address strong,
@@ -2761,6 +2763,9 @@ input::placeholder {
 
 .checkout-page__promo {
   margin-top: 1.2rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
 }
 
 .checkout-page__promo input {
@@ -2773,6 +2778,25 @@ input::placeholder {
   padding: 0 0.95rem;
   font-weight: 850;
   text-transform: uppercase;
+}
+
+.checkout-page__promo-button {
+  min-height: 48px;
+  white-space: nowrap;
+}
+
+.checkout-page__discount-note {
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid color-mix(in srgb, var(--brand) 32%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 900;
 }
 
 .checkout-page__error,
@@ -3706,6 +3730,37 @@ textarea::placeholder {
 .checkout-page__summary-media span {
   background: var(--text);
   color: var(--surface);
+}
+
+.checkout-page__address {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.checkout-page__address--selected {
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  border-color: var(--brand);
+}
+
+.checkout-page__address small {
+  color: var(--text-muted);
+}
+
+.checkout-page__promo input {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.checkout-page__discount-note {
+  background: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand) 32%, var(--border));
+  color: var(--text);
+}
+
+.checkout-page__total-row--discount strong {
+  color: var(--brand);
 }
 
 .collection-card__price {
