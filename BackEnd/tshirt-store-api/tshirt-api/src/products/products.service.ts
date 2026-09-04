@@ -96,7 +96,13 @@ export class ProductsService {
           images: { orderBy: { sortOrder: 'asc' }, take: 2 },
           variants: {
             where: { isActive: true },
-            include: { size: true, color: true },
+            select: {
+              id: true,
+              sku: true,
+              price: true,
+              stock: true,
+              isActive: true,
+            },
           },
           // _count cuenta las relaciones sin traer todos los datos
           _count: { select: { likes: true } },
@@ -119,7 +125,7 @@ export class ProductsService {
           p.images[0]?.publicUrl ??
           null,
         images: p.images,
-        variants: p.variants,
+        variants: p.variants ?? [],
         likesCount: p._count.likes,
         createdAt: p.createdAt,
       })),
