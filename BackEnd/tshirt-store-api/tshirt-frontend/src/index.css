@@ -3543,6 +3543,44 @@ body[data-theme='dark'] {
   box-shadow: 0 20px 54px var(--shadow);
 }
 
+.store-drawer {
+  border-left-color: var(--border);
+}
+
+.store-drawer__header,
+.store-drawer__footer {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.store-drawer__header h2,
+.store-drawer__item strong,
+.store-drawer__item b,
+.store-drawer__footer strong,
+.store-drawer__notification strong,
+.store-drawer__notification p {
+  color: var(--text);
+}
+
+.store-drawer__item,
+.store-drawer__notification {
+  background: var(--surface-elevated);
+  border-color: var(--border);
+  box-shadow: 0 12px 28px var(--shadow);
+}
+
+.store-drawer__media {
+  background: var(--surface-muted);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.store-drawer__footer span,
+.store-drawer__empty,
+.store-drawer__notification small {
+  color: var(--text-muted);
+}
+
 .store-nav {
   background: color-mix(in srgb, var(--page-bg) 88%, transparent);
   border-bottom-color: var(--border);
