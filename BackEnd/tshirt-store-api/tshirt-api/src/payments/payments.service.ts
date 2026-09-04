@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 // Stripe: SDK oficial de Stripe para procesar pagos con tarjeta de crédito
 import Stripe from 'stripe';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LOW_STOCK_THRESHOLD } from '../common/constants/inventory.constants';
 
@@ -300,6 +300,74 @@ export class PaymentsService {
 
     // Retorna la URL de Stripe Checkout para que el frontend redirija al usuario
     return { paymentLinkUrl: session.url, orderId: order.id };
+  }
+
+  async refundOrderPayment(orderId: number) {
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        orderId,
+        status: PaymentStatus.succeeded,
+      },
+      orderBy: { paidAt: 'desc' },
+    });
+
+    if (!payment) {
+      const refundedPayment = await this.prisma.payment.findFirst({
+        where: { orderId, status: PaymentStatus.refunded },
+        orderBy: { updatedAt: 'desc' },
+      });
+      if (refundedPayment) return refundedPayment;
+      throw new BadRequestException('No refundable payment found for order');
+    }
+
+    if (payment.provider === 'stripe_demo') {
+      return this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.refunded },
+      });
+    }
+
+    if (!this.isStripeConfigured()) {
+      throw new BadRequestException('Stripe is not configured');
+    }
+    if (!payment.providerPaymentId) {
+      throw new BadRequestException('Payment provider id is missing');
+    }
+
+    const paymentIntentId = await this.resolvePaymentIntentId(payment);
+    await this.stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        reason: 'requested_by_customer',
+      },
+      {
+        idempotencyKey: `order-${orderId}-payment-${payment.id}-cancel-refund`,
+      },
+    );
+
+    return this.prisma.payment.update({
+      where: { id: payment.id },
+      data: { status: PaymentStatus.refunded },
+    });
+  }
+
+  private async resolvePaymentIntentId(payment: {
+    method: string;
+    providerPaymentId: string | null;
+  }) {
+    if (!payment.providerPaymentId) {
+      throw new BadRequestException('Payment provider id is missing');
+    }
+    if (payment.method === 'payment_intent') return payment.providerPaymentId;
+
+    const session = await this.stripe.checkout.sessions.retrieve(
+      payment.providerPaymentId,
+    );
+    const paymentIntent = session.payment_intent;
+    if (typeof paymentIntent === 'string') return paymentIntent;
+    if (paymentIntent?.id) return paymentIntent.id;
+
+    throw new BadRequestException('Stripe payment intent not found for order');
   }
 
   private async completeOrderPayment(

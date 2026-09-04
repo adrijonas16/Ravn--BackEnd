@@ -6,10 +6,12 @@ import {
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentsService } from '../payments/payments.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
   let prisma: Record<string, any>;
+  let paymentsService: Record<string, jest.Mock>;
 
   const clientUser = { id: 1, email: 'client@test.com', role: 'client' };
   const managerUser = { id: 2, email: 'manager@test.com', role: 'manager' };
@@ -30,11 +32,19 @@ describe('OrdersService', () => {
       orderStatusHistory: { create: jest.fn() },
       productVariant: { update: jest.fn(), findUnique: jest.fn() },
       inventoryMovement: { create: jest.fn() },
+      notification: { create: jest.fn() },
       $transaction: jest.fn((fn) => fn(prisma)),
+    };
+    paymentsService = {
+      refundOrderPayment: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [OrdersService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        OrdersService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: PaymentsService, useValue: paymentsService },
+      ],
     }).compile();
 
     service = module.get(OrdersService);
@@ -259,6 +269,40 @@ describe('OrdersService', () => {
           user: clientUser,
         }),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should refund paid order before cancelling it', async () => {
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 1,
+        userId: 1,
+        currentStatus: 'paid',
+        user: { id: 1, email: 'client@test.com' },
+      });
+      prisma.order.findUnique.mockResolvedValueOnce({
+        id: 1,
+        userId: 1,
+        currentStatus: 'paid',
+        user: { id: 1, email: 'client@test.com' },
+      });
+      prisma.order.update.mockResolvedValue({
+        id: 1,
+        currentStatus: 'cancelled',
+        items: [{ productVariantId: 5, quantity: 2 }],
+      });
+      prisma.productVariant.findUnique.mockResolvedValue({ stock: 12 });
+
+      await service.cancelOrder({
+        orderId: 1,
+        user: clientUser,
+        reason: 'changed mind',
+      });
+
+      expect(paymentsService.refundOrderPayment).toHaveBeenCalledWith(1);
+      expect(prisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ currentStatus: 'cancelled' }),
+        }),
+      );
     });
   });
 });

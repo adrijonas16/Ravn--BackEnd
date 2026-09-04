@@ -11,6 +11,7 @@ import type { AuthenticatedUser } from '../common/types/authenticated-user.type'
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { UpdateOrderStatusCommandDto } from './dto/update-order-status-command.dto';
 import { CancelOrderCommandDto } from './dto/cancel-order-command.dto';
+import { PaymentsService } from '../payments/payments.service';
 
 // Máquina de estados: define qué transiciones de estado son válidas
 // Ej: de "paid" solo puede ir a "processing" o "cancelled", nunca a "delivered" directamente
@@ -23,7 +24,10 @@ const VALID_TRANSITIONS: Record<string, OrderStatus[]> = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private paymentsService: PaymentsService,
+  ) {}
 
   // Convierte el carrito activo del usuario en una orden de compra
   async create(userId: number, dto: CreateOrderDto) {
@@ -369,6 +373,12 @@ export class OrdersService {
 
     const data: any = { currentStatus: newStatus };
     if (newStatus === OrderStatus.cancelled) {
+      if (
+        order.currentStatus === OrderStatus.paid ||
+        order.currentStatus === OrderStatus.processing
+      ) {
+        await this.paymentsService.refundOrderPayment(orderId);
+      }
       data.cancelledAt = new Date();
     }
 
