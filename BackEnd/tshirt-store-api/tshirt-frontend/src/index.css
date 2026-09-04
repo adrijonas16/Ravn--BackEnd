@@ -2750,9 +2750,8 @@ input::placeholder {
 }
 
 .checkout-page__summary {
-  background:
-    linear-gradient(180deg, #eef3f8 0%, #e8f1ee 100%);
-  border-left-color: rgba(17, 17, 17, 0.08);
+  background: var(--surface);
+  border-left-color: var(--border);
 }
 
 .checkout-page__summary-items {
@@ -3667,6 +3666,46 @@ textarea,
 input::placeholder,
 textarea::placeholder {
   color: var(--text-muted);
+}
+
+.checkout-page__summary {
+  background: var(--surface);
+  border-left-color: var(--border);
+  color: var(--text);
+}
+
+.checkout-page__summary-inner {
+  background: transparent;
+  color: var(--text);
+}
+
+.checkout-page__summary-item strong,
+.checkout-page__summary-item b,
+.checkout-page__total-row strong,
+.checkout-page__grand-total strong {
+  color: var(--text);
+}
+
+.checkout-page__total-row,
+.checkout-page__grand-total {
+  border-top-color: var(--border);
+  color: var(--text);
+}
+
+.checkout-page__total-row span,
+.checkout-page__grand-total span {
+  color: var(--text-muted);
+}
+
+.checkout-page__summary-media {
+  background: var(--surface-muted);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.checkout-page__summary-media span {
+  background: var(--text);
+  color: var(--surface);
 }
 
 .collection-card__price {
