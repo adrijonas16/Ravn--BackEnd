@@ -31,6 +31,13 @@ Good inputs:
 7. Produce a scoped implementation plan and a validation plan.
 8. Call out risks, assumptions, and rollback needs.
 
+## Working Directories
+
+- Backend commands run from: `BackEnd/tshirt-store-api/tshirt-api`
+- Frontend commands run from: `BackEnd/tshirt-store-api/tshirt-frontend`
+
+Always `cd` to the correct directory before running any command.
+
 ## Repository Checks To Consider
 
 - Backend focused test: `npm run test -- <spec-file> --runInBand`

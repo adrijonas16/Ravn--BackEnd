@@ -46,6 +46,13 @@ Good inputs:
 - Frontend domain types: `BackEnd/tshirt-store-api/tshirt-frontend/src/types`
 - Frontend pages: `BackEnd/tshirt-store-api/tshirt-frontend/src/pages`
 
+## Working Directories
+
+- Backend commands run from: `BackEnd/tshirt-store-api/tshirt-api`
+- Frontend commands run from: `BackEnd/tshirt-store-api/tshirt-frontend`
+
+Always `cd` to the correct directory before running any command.
+
 ## Checks To Consider
 
 - Backend focused test: `npm run test -- <spec-file> --runInBand`

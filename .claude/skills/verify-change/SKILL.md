@@ -17,6 +17,13 @@ Good inputs:
 - "Verify this PR only changes backend behavior and all related checks pass."
 - "Verify this frontend change builds and lint passes."
 
+## Working Directories
+
+- Backend commands run from: `BackEnd/tshirt-store-api/tshirt-api`
+- Frontend commands run from: `BackEnd/tshirt-store-api/tshirt-frontend`
+
+Always `cd` to the correct directory before running any command.
+
 ## Steps
 
 1. Identify the smallest targeted check that should prove the change.

@@ -17,6 +17,17 @@ This repository contains the T-Shirt Store backend and frontend under `BackEnd/t
 - Build check: `npm run build`
 - Lint check: `npm run lint`
 
+## Available Skills
+
+Use these skills when the task matches their purpose:
+
+- `/investigate-task` — Research a bug or improvement before writing code. Produces a scoped plan with relevant files, risks, and validation steps.
+- `/verify-change` — Run targeted checks after a fix to produce evidence that the change works. Covers backend tests/build/lint and frontend build/lint.
+- `/api-contract-check` — Verify that backend DTOs/controllers and frontend API clients/types agree. Catches request/response/error mismatches.
+- `/docs-sync` — Check whether documentation needs updates after a code change. Reviews READMEs, API docs, and setup notes.
+- `/db-check` — Verify Prisma schema, migrations, and DTOs are in sync. Catches schema drift and field mismatches.
+- `/security-check` — Check for missing guards, leaked fields, and unsafe patterns. Covers auth, validation, and data exposure.
+
 ## Working Rules
 
 - Keep changes scoped to the requested feature or bug.

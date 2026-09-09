@@ -17,6 +17,13 @@ Good inputs:
 - "Check whether the checkout API docs match the current payment flow."
 - "Review docs affected by changes in the products admin page."
 
+## Working Directories
+
+- Backend commands run from: `BackEnd/tshirt-store-api/tshirt-api`
+- Frontend commands run from: `BackEnd/tshirt-store-api/tshirt-frontend`
+
+Always `cd` to the correct directory before running any command.
+
 ## Steps
 
 1. Identify the changed behavior and the files that implement it.
