@@ -8,7 +8,10 @@ dist/
 .env.local
 
 # Claude
-.claude/
+.claude/*
+!.claude/skills/
+!.claude/skills/**
+!.claude/skills/**/SKILL.md
 
 # OS
 .DS_Store

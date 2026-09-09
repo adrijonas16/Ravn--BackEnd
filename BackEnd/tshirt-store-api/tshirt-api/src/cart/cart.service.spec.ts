@@ -28,6 +28,13 @@ describe('CartService', () => {
   });
 
   describe('addItem', () => {
+    it('should reject quantities below one before looking up the SKU', async () => {
+      await expect(
+        service.addItem(1, { productVariantId: 1, quantity: 0 }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.productVariant.findUnique).not.toHaveBeenCalled();
+    });
+
     it('should throw NotFoundException for non-existent SKU', async () => {
       prisma.productVariant.findUnique.mockResolvedValue(null);
       await expect(
@@ -61,6 +68,17 @@ describe('CartService', () => {
   });
 
   describe('updateItem', () => {
+    it('should reject quantities below one before reading the cart item', async () => {
+      await expect(
+        service.updateItem({
+          userId: 1,
+          itemId: 1,
+          dto: { quantity: 0 },
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.cartItem.findFirst).not.toHaveBeenCalled();
+    });
+
     it('should throw NotFoundException for non-existent cart item', async () => {
       prisma.cart.findFirst.mockResolvedValue({ id: 1 });
       prisma.cartItem.findFirst.mockResolvedValue(null);
