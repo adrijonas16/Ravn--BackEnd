@@ -25,6 +25,7 @@ After this change, both service methods return `BadRequestException('Quantity mu
 | [investigate-task](../../.claude/skills/investigate-task/SKILL.md) | Goal: investigate a bug or improvement before implementation. Input: bug report/proposed change. Steps: restate behavior, inspect relevant files, identify frontend/backend scope, find tests/checks, propose reproduction, plan implementation and validation. Output: relevant files, current behavior, proposed change, test plan, risks, rollback notes, next command. | `/investigate-task Investigate cart quantity validation. Direct CartService calls should reject non-positive and non-integer quantities before SKU/cart-item lookup.` |
 | [verify-change](../../.claude/skills/verify-change/SKILL.md) | Goal: verify a completed change with executable checks. Input: changed files or branch. Steps: run targeted checks, report failures, run broader backend/frontend checks, distinguish mocks vs real services, record evidence. Output: command results, evidence logs, mocked vs real services, limitations, recommended commit message. | `/verify-change Verify the cart quantity validation fix in tshirt-api. Run the focused cart spec, full backend tests, backend build, backend lint, and relevant frontend lint/build checks.` |
 | [docs-sync](../../.claude/skills/docs-sync/SKILL.md) | Goal: keep documentation aligned with implementation. Input: changed feature/module/files. Steps: identify changed behavior, search related docs, compare docs to code/tests, update only affected docs or explain why none are needed. Output: docs reviewed, docs updated, no-change rationale, possible outdated docs, validation. | `/docs-sync Sync docs for the cart quantity validation change and confirm whether README or API docs need updates.` |
+| [api-contract-check](../../.claude/skills/api-contract-check/SKILL.md) | Goal: check full-stack API alignment. Input: endpoint, frontend flow, DTO, service method, or branch. Steps: compare backend controller/DTO/service behavior with frontend API clients, types, consumers, and error handling. Output: backend/frontend files reviewed, request/response/error alignment, recommended checks, follow-up issues. | `/api-contract-check Check the cart item quantity contract between frontend and backend.` |
 
 ## Notes
 
@@ -49,6 +50,7 @@ After this change, both service methods return `BadRequestException('Quantity mu
   - `/investigate-task` turns a vague improvement into relevant files, a controlled failing reproduction, and a small implementation plan.
   - `/verify-change` standardizes the validation sequence and records evidence instead of relying on memory.
   - `/docs-sync` checks whether the change affects documentation and keeps that review explicit.
+  - `/api-contract-check` gives a repeatable way to compare backend DTO/service behavior with frontend API clients and types when a change crosses the API boundary.
 
 The judgment I still needed: choosing a change small enough for the assignment, deciding that service-layer validation was worthwhile even though controller DTO validation already existed, broadening the invariant from "at least 1" to "positive integer" to match DTO intent, and choosing unit tests rather than integration tests because this was a service invariant.
 
@@ -134,6 +136,7 @@ Fresh-session skill runs:
 - Planned invocation: `/investigate-task Investigate cart quantity validation. Direct CartService calls should reject non-positive and non-integer quantities before SKU/cart-item lookup.`
 - Planned invocation: `/verify-change Verify the cart quantity validation fix in tshirt-api. Run the focused cart spec, full backend tests, backend build, backend lint, and relevant frontend lint/build checks.`
 - Planned invocation: `/docs-sync Sync docs for the cart quantity validation change and confirm whether README or API docs need updates.`
+- Planned invocation: `/api-contract-check Check the cart item quantity contract between frontend and backend.`
 - The skills are repository-local and self-contained, so a fresh Claude Code session can invoke them without relying on this chat context.
 
 Commits:
