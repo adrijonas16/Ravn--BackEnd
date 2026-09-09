@@ -9,14 +9,20 @@
 
 ## Improvement
 
-The cart service now rejects non-positive and non-integer item quantities inside the service layer for both add and update operations.
+The cart quantity flow is now safer and clearer across backend and frontend.
+
+- The cart service rejects non-positive and non-integer item quantities inside the service layer for both add and update operations.
+- Cart API responses now include each item's available `stock`.
+- Product detail quantity controls now stop at the selected SKU stock.
+- Cart quantity controls now stop at each cart item's available stock and disable the `+` button at the limit.
+- Store buttons now share the same base font size, so `Pay now` matches the surrounding button typography.
 
 Before this change, controller DTO validation had `@Min(1)`, but direct service calls could still reach inconsistent paths:
 
 - `addItem` with quantity `0` looked up the SKU and returned `NotFoundException` in the unit reproduction.
 - `updateItem` with quantity `0` could continue into cart lookup and produced a `TypeError` in the unit reproduction when no cart mock was present.
 
-After this change, both service methods return `BadRequestException('Quantity must be a positive integer')` before reading SKU/cart item data. It works because the focused cart unit tests now cover zero, negative, and decimal quantities for both add and update paths, and the full backend test suite passes.
+After this change, both service methods return `BadRequestException('Quantity must be a positive integer')` before reading SKU/cart item data. The backend also exposes `stock` in formatted cart items so the frontend can enforce the same limit before calling the API. It works because the focused cart unit tests now cover zero, negative, decimal quantities, and cart item stock output, and the full backend/frontend checks pass.
 
 ## Skills
 
@@ -39,7 +45,7 @@ After this change, both service methods return `BadRequestException('Quantity mu
   - Frontend build: `npm run build`
 - Setup added: [CLAUDE.md](../../CLAUDE.md) documents project paths and common checks for future Claude Code sessions.
 - `.gitignore` was updated so `.claude/skills/**/SKILL.md` can be committed while other `.claude` local files stay ignored.
-- Safety/rollback: rollback is limited to the cart service guard, two unit tests, skill files, `CLAUDE.md`, `.gitignore`, and this write-up. No shared data, credentials, migrations, or external services were changed.
+- Safety/rollback: rollback is limited to the cart service guard, cart response shape, frontend cart/product quantity controls, button typography CSS, skill files, `CLAUDE.md`, `.gitignore`, and this write-up. No shared data, credentials, migrations, or external services were changed.
 
 ## Project Results
 
@@ -52,7 +58,7 @@ After this change, both service methods return `BadRequestException('Quantity mu
   - `/docs-sync` checks whether the change affects documentation and keeps that review explicit.
   - `/api-contract-check` gives a repeatable way to compare backend DTO/service behavior with frontend API clients and types when a change crosses the API boundary.
 
-The judgment I still needed: choosing a change small enough for the assignment, deciding that service-layer validation was worthwhile even though controller DTO validation already existed, broadening the invariant from "at least 1" to "positive integer" to match DTO intent, and choosing unit tests rather than integration tests because this was a service invariant.
+The judgment I still needed: choosing a change small enough for the assignment, deciding that service-layer validation was worthwhile even though controller DTO validation already existed, broadening the invariant from "at least 1" to "positive integer" to match DTO intent, exposing stock to the frontend instead of duplicating product lookup logic there, and choosing unit tests/build checks rather than a heavier e2e flow.
 
 ### Evidence
 
@@ -94,7 +100,7 @@ Passing focused check after the fix:
 ```text
 npm run test -- cart.service.spec.ts --runInBand
 Test Suites: 1 passed, 1 total
-Tests: 12 passed, 12 total
+Tests: 13 passed, 13 total
 ```
 
 Passing broader checks after the fix:
@@ -102,7 +108,7 @@ Passing broader checks after the fix:
 ```text
 npm run test -- --runInBand
 Test Suites: 12 passed, 12 total
-Tests: 100 passed, 100 total
+Tests: 101 passed, 101 total
 ```
 
 ```text
@@ -145,7 +151,7 @@ Commits:
 
 ## Limitations
 
-- The invalid quantity behavior is covered at the service unit level, not by an HTTP e2e test.
+- The invalid quantity and cart item stock response behavior are covered at the service unit level, not by an HTTP e2e test.
 - Cart tests mock Prisma, so they validate service branching and repository calls, not database constraints.
-- I did not run the application manually through the browser because the change is backend service validation and is already covered by targeted unit tests, lint, and build checks.
+- I did not run the application manually through the browser. The change is covered by targeted backend unit tests plus frontend/backend lint and build checks.
 - The PR is open and pending mentor review.

@@ -187,6 +187,7 @@ export class CartService {
       colorName: item.productVariant.color.name,
       imageUrl: item.productVariant.product.images[0]?.publicUrl ?? null,
       unitPrice: Number(item.productVariant.price),
+      stock: item.productVariant.stock,
       quantity: item.quantity,
       lineTotal: Number(item.productVariant.price) * item.quantity,
     }));

@@ -77,6 +77,42 @@ describe('CartService', () => {
     });
   });
 
+  describe('getOrCreateCart', () => {
+    it('should include available stock in formatted cart items', async () => {
+      prisma.cart.findFirst.mockResolvedValue({
+        id: 1,
+        items: [
+          {
+            id: 2,
+            productVariantId: 3,
+            productVariant: {
+              sku: 'TEE-BLK-M',
+              price: 25,
+              stock: 40,
+              product: {
+                name: 'Black Tee',
+                images: [{ publicUrl: 'https://example.com/black-tee.jpg' }],
+              },
+              size: { name: 'M' },
+              color: { name: 'Black' },
+            },
+            quantity: 2,
+          },
+        ],
+      });
+
+      await expect(service.getOrCreateCart(1)).resolves.toEqual(
+        expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              stock: 40,
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
   describe('updateItem', () => {
     it.each([0, -1])(
       'should reject quantity %i before reading the cart item',
