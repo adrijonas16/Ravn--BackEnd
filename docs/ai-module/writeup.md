@@ -4,7 +4,7 @@
 
 - Repository: `Ravn--BackEnd`
 - Branch: `ai-module-skills-assignment`
-- PR: pending
+- PR: https://github.com/adrijonas16/Ravn--BackEnd/pull/1
 - Starting commit: `4d1a0b81cf539b7008a62940a05ca4214cb142fa`
 
 ## Improvement
@@ -135,11 +135,11 @@ Fresh-session skill runs:
 
 Commits:
 
-- Pending commit after final review.
+- `afb7298` - Add AI module skills and cart validation fix
 
 ## Limitations
 
 - The invalid quantity behavior is covered at the service unit level, not by an HTTP e2e test.
 - Cart tests mock Prisma, so they validate service branching and repository calls, not database constraints.
 - I did not run the application manually through the browser because the change is backend service validation and is already covered by targeted unit tests, lint, and build checks.
-- The PR has not been opened yet.
+- The PR is open and pending mentor review.
