@@ -64,9 +64,7 @@ export class CartService {
 
   // Agrega un item al carrito (o incrementa cantidad si ya existe ese SKU)
   async addItem(userId: number, dto: AddCartItemDto) {
-    if (dto.quantity < 1) {
-      throw new BadRequestException('Quantity must be at least 1');
-    }
+    this.validateQuantity(dto.quantity);
 
     // Valida que el SKU exista, esté activo y el producto no esté eliminado
     const sku = await this.prisma.productVariant.findUnique({
@@ -125,9 +123,7 @@ export class CartService {
   // Actualiza la cantidad de un item (reemplaza, no suma)
   async updateItem(command: UpdateCartItemCommandDto) {
     const { userId, itemId, dto } = command;
-    if (dto.quantity < 1) {
-      throw new BadRequestException('Quantity must be at least 1');
-    }
+    this.validateQuantity(dto.quantity);
 
     const cart = await this.ensureActiveCart(userId);
     // Busca el item verificando que pertenezca al carrito del usuario (seguridad)
@@ -171,6 +167,12 @@ export class CartService {
       cart = await this.prisma.cart.create({ data: { userId } });
     }
     return cart;
+  }
+
+  private validateQuantity(quantity: number) {
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new BadRequestException('Quantity must be a positive integer');
+    }
   }
 
   // Transforma los datos crudos de Prisma al formato que espera el frontend

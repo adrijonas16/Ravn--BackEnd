@@ -28,9 +28,19 @@ describe('CartService', () => {
   });
 
   describe('addItem', () => {
-    it('should reject quantities below one before looking up the SKU', async () => {
+    it.each([0, -1])(
+      'should reject quantity %i before looking up the SKU',
+      async (quantity) => {
+        await expect(
+          service.addItem(1, { productVariantId: 1, quantity }),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.productVariant.findUnique).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should reject decimal quantities before looking up the SKU', async () => {
       await expect(
-        service.addItem(1, { productVariantId: 1, quantity: 0 }),
+        service.addItem(1, { productVariantId: 1, quantity: 1.5 }),
       ).rejects.toThrow(BadRequestException);
       expect(prisma.productVariant.findUnique).not.toHaveBeenCalled();
     });
@@ -68,12 +78,26 @@ describe('CartService', () => {
   });
 
   describe('updateItem', () => {
-    it('should reject quantities below one before reading the cart item', async () => {
+    it.each([0, -1])(
+      'should reject quantity %i before reading the cart item',
+      async (quantity) => {
+        await expect(
+          service.updateItem({
+            userId: 1,
+            itemId: 1,
+            dto: { quantity },
+          }),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.cartItem.findFirst).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should reject decimal quantities before reading the cart item', async () => {
       await expect(
         service.updateItem({
           userId: 1,
           itemId: 1,
-          dto: { quantity: 0 },
+          dto: { quantity: 1.5 },
         }),
       ).rejects.toThrow(BadRequestException);
       expect(prisma.cartItem.findFirst).not.toHaveBeenCalled();
