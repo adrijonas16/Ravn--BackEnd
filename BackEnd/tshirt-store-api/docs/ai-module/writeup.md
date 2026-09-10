@@ -56,96 +56,112 @@
 
 ### Evidence
 
-#### Skill 1: `/investigate-task` — Finding the root cause
+> Both skills below were run by **independent sub-agents with no prior conversation context** (fresh-session equivalent). They read the SKILL.md, followed the instructions autonomously, and produced the structured output below.
+
+#### Skill 1: `/investigate-task` — Finding the root cause (fresh-session run)
 
 **Invocation**: `/investigate-task the cart getOrCreateCart response does not include stock info, so the frontend cannot cap quantity selectors`
 
-**Output produced**:
+**Output produced** (independent agent, 25 tool calls, 67s):
 
 ```
 Problem:
-  Frontend quantity selectors have no stock limit — users can request more than available.
+  The report claims that getOrCreateCart does not include stock info,
+  preventing the frontend from capping quantity selectors.
 Expected behavior:
   Cart API response includes stock per item; frontend caps qty <= stock.
 Actual behavior:
-  formatCart() in cart.service.ts omits the stock field entirely.
+  The backend ALREADY includes stock. The frontend ALREADY uses it.
+  This issue is already resolved in the current codebase.
 
 Phase 1 — Investigation:
-- cart.service.ts:180-193 — formatCart() maps item fields but skips stock
-- cart.service.ts:77-78 — addItem() already validates stock (sku.stock < dto.quantity)
-- cart.service.ts:136-138 — updateItem() already validates stock
-- tshirt-frontend/src/types/index.ts — CartItem type has no stock field
+- cart.service.ts:190 — formatCart() maps stock: item.productVariant.stock
+- cart.service.ts:17-35 — getOrCreateCart() includes productVariant via Prisma
+- cart.service.spec.ts:81-113 — test asserts stock: 40 in formatted output
+- tshirt-frontend/src/types/index.ts:105 — CartItem declares stock: number
+- CartPage.tsx:30 — updateQuantity() clamps via Math.min(item.stock, quantity)
+- CartPage.tsx:105 — "+" button disabled when item.quantity >= item.stock
+- CartPage.tsx:107 — tooltip shows "Only ${item.stock} in stock" at max
 
 Phase 2 — Analysis:
-- Similar working implementation: cart.service.ts:77 validates stock in addItem()
-  using sku.stock — the data IS queried, just not returned to the client.
-- Key difference: addItem/updateItem use stock for validation but formatCart()
-  doesn't expose it in the response.
-- Root cause: cart.service.ts:190 — formatCart() omits stock field from response.
+- Similar working implementation: formatCart() follows same pattern as other
+  response formatters — flattens nested Prisma relations into clean DTO.
+- Key difference: NONE. Stock field is already included at every layer.
+- Root cause: The reported issue does not exist in the current codebase.
+  It was fixed in commit 16db4d0 ("Cap cart quantities by available stock").
 
 Phase 3 — Hypothesis:
-- Hypothesis: Adding stock: item.productVariant.stock to formatCart() will
-  expose stock to the frontend without changing any queries.
-- Test: Check if the Prisma include in getOrCreateCart() already fetches stock.
-- Result: CONFIRMED — the productVariant include fetches all fields including stock.
+- Hypothesis: The stock field was added in commit 16db4d0.
+- Test: Verify formatCart includes stock and test suite asserts it.
+- Result: CONFIRMED — cart.service.ts:190, cart.service.spec.ts:81-113,
+  CartPage.tsx:30,105,107 all present and working.
 
 Phase 4 — Plan:
-- Implementation:
-  - cart.service.ts:190 — add `stock: item.productVariant.stock`
-  - tshirt-frontend/src/types/index.ts — add `stock: number` to CartItem
-  - CartPage.tsx — disable + button when qty >= stock
-  - ProductDetailPage.tsx — cap quantity selector at stock
-- Validation:
-  - Add test: "should include available stock in formatted cart items"
-  - Existing tests must still pass (addItem, updateItem stock checks)
-- Risks:
-  - None — additive change, no existing behavior modified
+- No code changes required. The fix is already in place.
+- Validation: npm run test -- cart --runInBand (13/13 pass)
+- Risks: Race condition if stock changes between page load and quantity
+  update — mitigated by server-side validation at cart.service.ts:136-139.
 ```
 
-#### Skill 2: `/verify-change` — Proving the fix works
+#### Skill 2: `/verify-change` — Proving the fix works (fresh-session run)
 
 **Invocation**: `/verify-change the cart service now exposes stock field in formatted cart items`
 
-**Output produced**:
+**Output produced** (independent agent, 21 tool calls, 138s):
 
 ```
-Verification target: cart.service.ts:190 — stock field added to formatCart()
+Verification target:
+  Cart service exposes stock field in formatted cart items;
+  frontend caps quantity by stock.
 
 Commands run:
-- command: npm run test -- cart --runInBand
+- command: npm run test -- cart.service --runInBand
   directory: BackEnd/tshirt-store-api/tshirt-api
   result: PASS
-  evidence: Test Suites: 1 passed, 1 total | Tests: 13 passed, 13 total
+  evidence: 13/13 tests passed. Includes "should include available stock
+    in formatted cart items" (cart.service.spec.ts:81) asserting stock: 40.
 
 - command: npm run test -- --runInBand
   directory: BackEnd/tshirt-store-api/tshirt-api
-  result: PARTIAL (pre-existing failures)
-  evidence: Tests: 69 passed, 69 total | Suites: 4 failed (bullmq), 8 passed
+  result: PASS (with pre-existing suite-level failures)
+  evidence: 69/69 tests passed. 4 suites failed to run due to missing
+    packages (@nestjs/bullmq, @aws-sdk/client-s3) — pre-existing, unrelated.
+
+- command: npm run build (backend)
+  directory: BackEnd/tshirt-store-api/tshirt-api
+  result: FAIL (pre-existing)
+  evidence: All errors pre-existing: Prisma client out of sync, missing
+    packages. No new errors from cart changes.
 
 - command: npx eslint "src/cart/**/*.ts"
   directory: BackEnd/tshirt-store-api/tshirt-api
-  result: PASS (exit code 0, no warnings)
+  result: PASS — zero lint errors/warnings on cart module.
 
-- command: npx prisma validate
-  directory: BackEnd/tshirt-store-api/tshirt-api
-  result: PASS — "The schema at prisma/schema.prisma is valid"
+- command: npm run build (frontend)
+  directory: BackEnd/tshirt-store-api/tshirt-frontend
+  result: PASS — tsc -b + vite build succeeded. TypeScript confirms
+    CartItem.stock is correctly typed (types/index.ts:105).
+
+- command: npm run lint (frontend)
+  directory: BackEnd/tshirt-store-api/tshirt-frontend
+  result: PASS — oxlint clean, zero issues.
 
 Mocks vs real services:
-- PrismaService: MOCKED (jest.fn() for all Prisma methods)
-- cart.findFirst, productVariant.findUnique: jest mocks
-- No real database, no real Stripe, no real S3
+- All cart tests use mocked PrismaService (jest.fn() stubs)
+- No real database, Stripe, S3, or Redis connections
 
 Result:
-- PASS — 13/13 cart tests green, lint clean, schema valid
-- Pre-existing: 4 suites fail on @nestjs/bullmq mock (unrelated)
+- PASS. Stock field correctly exposed (cart.service.ts:190), verified by
+  unit test (cart.service.spec.ts:81-113). Frontend CartItem type includes
+  stock (types/index.ts:105), CartPage caps quantity (CartPage.tsx:30),
+  disables increment button at limit (CartPage.tsx:105). Frontend build
+  and lint both pass cleanly.
 
 Limitations:
-- Integration test against real DB not covered
-- Frontend has no test suite — verified by build + lint only
-- npm run build has 83 pre-existing TS errors (InventoryMovement model)
-
-Recommended commit message:
-  "Cap cart quantities by available stock"
+- Backend build has pre-existing failures (not caused by this change)
+- No integration/e2e tests exercise the full round-trip
+- Stock capping validated at UI layer; server-side validation exists but
+  race conditions remain possible
 ```
 
 #### Skill 3: `/db-check` — Verifying schema alignment
