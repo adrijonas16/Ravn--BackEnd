@@ -4,7 +4,7 @@
 
 - **Repository**: [adrijonas16/Ravn--BackEnd](https://github.com/adrijonas16/Ravn--BackEnd)
 - **Branch**: `ai-module-skills-assignment`
-- **PR**: *(to be opened after review)*
+- **PR**: [#1](https://github.com/adrijonas16/Ravn--BackEnd/pull/1)
 - **Starting commit**: `4d1a0b8` — `fix: document pagination query params as numbers`
 
 ## Improvement: Cap cart quantities by available stock
@@ -56,37 +56,181 @@
 
 ### Evidence
 
-**Cart tests — 13/13 pass** (including the new stock test):
+#### Skill 1: `/investigate-task` — Finding the root cause
+
+**Invocation**: `/investigate-task the cart getOrCreateCart response does not include stock info, so the frontend cannot cap quantity selectors`
+
+**Output produced**:
 
 ```
-$ cd BackEnd/tshirt-store-api/tshirt-api
-$ npm run test -- cart --runInBand
+Problem:
+  Frontend quantity selectors have no stock limit — users can request more than available.
+Expected behavior:
+  Cart API response includes stock per item; frontend caps qty <= stock.
+Actual behavior:
+  formatCart() in cart.service.ts omits the stock field entirely.
 
-Test Suites: 1 passed, 1 total
-Tests:       13 passed, 13 total
-Time:        18.678 s
+Phase 1 — Investigation:
+- cart.service.ts:180-193 — formatCart() maps item fields but skips stock
+- cart.service.ts:77-78 — addItem() already validates stock (sku.stock < dto.quantity)
+- cart.service.ts:136-138 — updateItem() already validates stock
+- tshirt-frontend/src/types/index.ts — CartItem type has no stock field
+
+Phase 2 — Analysis:
+- Similar working implementation: cart.service.ts:77 validates stock in addItem()
+  using sku.stock — the data IS queried, just not returned to the client.
+- Key difference: addItem/updateItem use stock for validation but formatCart()
+  doesn't expose it in the response.
+- Root cause: cart.service.ts:190 — formatCart() omits stock field from response.
+
+Phase 3 — Hypothesis:
+- Hypothesis: Adding stock: item.productVariant.stock to formatCart() will
+  expose stock to the frontend without changing any queries.
+- Test: Check if the Prisma include in getOrCreateCart() already fetches stock.
+- Result: CONFIRMED — the productVariant include fetches all fields including stock.
+
+Phase 4 — Plan:
+- Implementation:
+  - cart.service.ts:190 — add `stock: item.productVariant.stock`
+  - tshirt-frontend/src/types/index.ts — add `stock: number` to CartItem
+  - CartPage.tsx — disable + button when qty >= stock
+  - ProductDetailPage.tsx — cap quantity selector at stock
+- Validation:
+  - Add test: "should include available stock in formatted cart items"
+  - Existing tests must still pass (addItem, updateItem stock checks)
+- Risks:
+  - None — additive change, no existing behavior modified
 ```
 
-Key tests:
-- `addItem > should throw BadRequestException for insufficient stock` (pre-existing)
-- `getOrCreateCart > should include available stock in formatted cart items` (NEW - added in fix)
-- `updateItem > should throw BadRequestException when new quantity exceeds stock` (pre-existing)
+#### Skill 2: `/verify-change` — Proving the fix works
 
-**Full test suite — 69/69 tests pass**:
+**Invocation**: `/verify-change the cart service now exposes stock field in formatted cart items`
+
+**Output produced**:
 
 ```
-$ npm run test -- --runInBand
+Verification target: cart.service.ts:190 — stock field added to formatCart()
 
-Test Suites: 4 failed, 8 passed, 12 total
-Tests:       69 passed, 69 total
+Commands run:
+- command: npm run test -- cart --runInBand
+  directory: BackEnd/tshirt-store-api/tshirt-api
+  result: PASS
+  evidence: Test Suites: 1 passed, 1 total | Tests: 13 passed, 13 total
+
+- command: npm run test -- --runInBand
+  directory: BackEnd/tshirt-store-api/tshirt-api
+  result: PARTIAL (pre-existing failures)
+  evidence: Tests: 69 passed, 69 total | Suites: 4 failed (bullmq), 8 passed
+
+- command: npx eslint "src/cart/**/*.ts"
+  directory: BackEnd/tshirt-store-api/tshirt-api
+  result: PASS (exit code 0, no warnings)
+
+- command: npx prisma validate
+  directory: BackEnd/tshirt-store-api/tshirt-api
+  result: PASS — "The schema at prisma/schema.prisma is valid"
+
+Mocks vs real services:
+- PrismaService: MOCKED (jest.fn() for all Prisma methods)
+- cart.findFirst, productVariant.findUnique: jest mocks
+- No real database, no real Stripe, no real S3
+
+Result:
+- PASS — 13/13 cart tests green, lint clean, schema valid
+- Pre-existing: 4 suites fail on @nestjs/bullmq mock (unrelated)
+
+Limitations:
+- Integration test against real DB not covered
+- Frontend has no test suite — verified by build + lint only
+- npm run build has 83 pre-existing TS errors (InventoryMovement model)
+
+Recommended commit message:
+  "Cap cart quantities by available stock"
 ```
 
-The 4 failing suites (`webhooks`, `products`, `notifications x2`) are pre-existing issues related to `@nestjs/bullmq` mock resolution and inventory model changes — unrelated to the cart fix.
+#### Skill 3: `/db-check` — Verifying schema alignment
 
-**Mocks vs real services**:
-- `PrismaService` is mocked in all tests (no real database).
-- `cart.findFirst`, `productVariant.findUnique`, etc. are jest mocks.
-- Integration test against real DB is not covered — noted as limitation.
+**Invocation**: `/db-check cart and product variant models`
+
+**Output produced**:
+
+```
+Models checked: Cart, CartItem, ProductVariant
+
+Schema validation:
+- prisma validate: PASS — "The schema at prisma/schema.prisma is valid"
+
+Migration status:
+- status: database unreachable (Docker not running)
+- note: tests use mocked Prisma, not a real DB connection
+
+Schema vs DTOs:
+- CartItem.quantity (schema) vs AddToCartDto.quantity (dto)
+  - aligned — both required Int
+- ProductVariant.stock (schema) vs formatCart() response (service)
+  - aligned AFTER fix — cart.service.ts:190 now exposes stock
+
+Schema vs Services:
+- cart.service.ts:77 reads sku.stock for validation — aligned
+- cart.service.ts:190 returns stock in formatCart() — aligned AFTER fix
+
+Recommended actions:
+- None — schema, DTOs, and services are aligned for the cart module
+```
+
+#### Skill 4: `/security-check` — Checking cart endpoints
+
+**Invocation**: `/security-check cart endpoints`
+
+**Output produced**:
+
+```
+Scope checked:
+- cart.controller.ts — all cart endpoints
+
+Auth guards:
+- All cart endpoints: @UseGuards(JwtAuthGuard) present
+- @Roles(): uses @CurrentUser() for user scoping — clients access own cart only
+
+Data exposure:
+- formatCart() response: no passwords, no tokens, no hashes
+- stock field: safe to expose (public product info)
+- user data: not included in cart response
+
+Input validation:
+- AddToCartDto: @IsInt() quantity, @IsPositive(), @IsInt() productVariantId
+- UpdateCartItemDto: @IsInt() quantity, @IsPositive()
+- Path params: use ParseIntPipe
+
+Vulnerabilities found:
+- None in cart module — ownership enforced via userId from JWT
+```
+
+#### Skill 5: `/env-check` — Environment verification
+
+**Invocation**: `/env-check database`
+
+**Output produced**:
+
+```
+Environment checked:
+
+Format validation:
+- DATABASE_URL: valid (starts with postgresql://)
+- JWT_SECRET: present
+- STRIPE_SECRET_KEY: present (sk_test_*)
+
+Service connectivity:
+- database: FAILED — P1001: Can't reach database server at 127.0.0.1:5434
+- docker: not running (postgres container stopped)
+- note: all tests use mocked Prisma, DB not required for test suite
+
+Recommended actions:
+- Start Docker postgres: docker start postgres_nerdery
+- Or: docker compose up -d
+```
+
+#### Fix commit and files changed
 
 **Fix commit**: [`16db4d0`](https://github.com/adrijonas16/Ravn--BackEnd/commit/16db4d0) — "Cap cart quantities by available stock"
 
@@ -96,6 +240,19 @@ Files changed:
 - `tshirt-frontend/src/pages/CartPage.tsx` — quantity capped by stock
 - `tshirt-frontend/src/pages/ProductDetailPage.tsx` — quantity capped by stock
 - `tshirt-frontend/src/types/index.ts` — added `stock` field to CartItem type
+
+#### Key stock validation code (cart.service.ts)
+
+```
+ 77: // Verifica stock antes de agregar
+ 78: if (sku.stock < dto.quantity) {
+ 80:   `Insufficient stock (available: ${sku.stock})`,
+ 99:   if (newQty > sku.stock) {
+101:     `Insufficient stock (available: ${sku.stock}, in cart: ${existingItem.quantity})`,
+136: if (dto.quantity > item.productVariant.stock) {
+138:   `Insufficient stock (available: ${item.productVariant.stock})`,
+190: stock: item.productVariant.stock,  // <-- THE FIX: expose stock to frontend
+```
 
 ### Limitations
 
