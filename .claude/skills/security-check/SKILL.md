@@ -1,100 +1,78 @@
 ---
 name: security-check
-description: Check that a code change does not introduce security vulnerabilities. Use this when adding endpoints, modifying auth, or changing data exposure.
+description: >
+  Check for missing guards, leaked fields, and unsafe patterns in endpoints.
+  Triggers: "new endpoint", "check guards", "is this secure", "leaked data",
+  "missing auth", "role check", "IDOR", "mass assignment", "password in response",
+  "token handling", "rate limiting".
+  Covers auth, validation, and data exposure.
+argument-hint: "[endpoint or controller to check]"
+allowed-tools:
+  - Read
+  - Grep
+  - Glob
 ---
 
 # Security Check
 
-Use this skill when a change touches authentication, authorization, data exposure, or adds new endpoints. The goal is to catch missing guards, leaked fields, and unsafe patterns before they reach production.
+Catch missing guards, leaked fields, and unsafe patterns before production.
 
-## Input
-
-A changed endpoint, controller, service, guard, or frontend page that handles sensitive data.
-
-Good inputs:
-
-- "Check security on the new admin product delete endpoint."
-- "Check whether the order response leaks payment details."
-- "Check that the new delivery endpoint requires the correct role."
-
-## Working Directories
-
-- Backend commands run from: `BackEnd/tshirt-store-api/tshirt-api`
-- Frontend commands run from: `BackEnd/tshirt-store-api/tshirt-frontend`
-
-Always `cd` to the correct directory before running any command.
-
-## Project Auth Architecture
-
-- Guards: `JwtAuthGuard`, `RolesGuard` (in `src/auth/guards/`)
-- Decorators: `@Roles()`, `@CurrentUser()`, `@Public()`
-- Roles: `manager`, `client`, `delivery_person`
-- Strategy: JWT via Passport (`src/auth/strategies/`)
-- CASL ability factory: `src/casl/`
+For project paths, auth architecture, and commands, read `reference.md` in this skill's directory.
 
 ## Steps
 
-1. Identify the changed or new endpoint (controller method).
-2. Check that the endpoint has the correct guards:
-   - `@UseGuards(JwtAuthGuard, RolesGuard)` or applied globally.
-   - `@Roles()` decorator with the correct role(s).
-   - If intentionally public, `@Public()` decorator must be explicit.
+1. Identify the changed/new endpoint (controller method) — cite `file:line`.
+2. Check auth guards:
+   - `@UseGuards(JwtAuthGuard, RolesGuard)` or global guard applied.
+   - `@Roles()` decorator with correct role(s).
+   - If intentionally public, `@Public()` must be explicit.
 3. Check data exposure in responses:
-   - Passwords, tokens, or hashes must never appear in responses.
-   - Internal IDs or sensitive fields (email, address) should only appear when the user owns the data or is a manager.
-   - Use `class-transformer` `@Exclude()` or manual selection to strip fields.
+   - Passwords, tokens, hashes must never appear.
+   - Internal IDs or sensitive fields only when user owns data or is manager.
+   - `@Exclude()` or manual field selection to strip fields.
 4. Check input validation:
-   - DTOs should use `class-validator` decorators (`@IsString()`, `@IsInt()`, `@Min()`, etc.).
-   - No raw user input should reach SQL, shell, or file system operations.
-   - `ParseIntPipe`, `ParseUUIDPipe`, or equivalent should validate path/query params.
+   - DTOs use `class-validator` decorators.
+   - No raw user input reaches SQL, shell, or file system.
+   - `ParseIntPipe`, `ParseUUIDPipe` validate path/query params.
 5. Check frontend token handling:
-   - Tokens stored in `localStorage` or `httpOnly` cookies (not in URL params or non-http cookies).
-   - Auth headers sent only to the app's own API, not to third parties.
-   - Token refresh or expiry handled gracefully.
-6. Check for common vulnerabilities:
-   - Mass assignment: accepting unknown fields via spread operator on create/update.
-   - IDOR: accessing resources by ID without verifying ownership.
-   - Missing rate limiting on auth endpoints (login, forgot-password).
-7. Run `npm run build` and `npm run test -- --runInBand` to verify nothing breaks.
+   - Tokens in `localStorage` or `httpOnly` cookies, not URL params.
+   - Auth headers sent only to app's own API.
+   - Token refresh/expiry handled.
+6. Check common vulnerabilities:
+   - Mass assignment: accepting unknown fields via spread on create/update.
+   - IDOR: accessing resources by ID without ownership check.
+   - Missing rate limiting on auth endpoints.
+7. Cite all findings with `file:line`.
 
 ## Rules
 
-- Do not remove guards or weaken validation to fix build errors.
-- Do not assume an endpoint is internal-only unless it is explicitly unreachable from the frontend.
-- Flag issues even if they exist in code you did not change, as long as they relate to the current flow.
-- Prefer the principle of least privilege: restrict access by default.
+- Never remove guards or weaken validation to fix build errors.
+- Never assume an endpoint is internal-only unless explicitly unreachable.
+- Flag issues even in unchanged code if they relate to the current flow.
+- Principle of least privilege: restrict by default.
 
 ## Output
 
-Return a security report in this format:
-
 ```text
 Scope checked:
+- file:line — endpoint/change description
 
 Auth guards:
-- endpoint: ...
-  - guard: present/missing
-  - roles: correct/incorrect/missing
-  - notes: ...
+- endpoint (file:line): guard present/missing, roles correct/incorrect/missing
 
 Data exposure:
-- endpoint/response: ...
-  - sensitive fields: none/leaked
-  - details: ...
+- response (file:line): sensitive fields none/leaked — detail
 
 Input validation:
-- DTO/param: ...
-  - validated: yes/no
-  - details: ...
+- DTO (file:line): validated yes/no — detail
 
 Frontend token handling:
-- storage: ...
-- transmission: ...
-- issues: ...
+- storage: method — secure/insecure
+- transmission: detail
 
 Vulnerabilities found:
-- ...
+- type (file:line) — detail
 
 Recommended fixes:
-- ...
+- file:line — change description
 ```

@@ -1,71 +1,70 @@
 ---
 name: docs-sync
-description: Check whether documentation matches a changed feature or module. Use this after implementation when API behavior, setup, commands, or developer workflows may need docs updates.
+description: >
+  Check if documentation needs updates after a code change.
+  Triggers: "update docs", "sync docs", "does the README match",
+  "are the docs outdated", after merging a feature that changes
+  API behavior, setup, or commands.
+argument-hint: "[feature or file that changed]"
+allowed-tools:
+  - Read
+  - Grep
+  - Glob
+  - Edit
+  - Write
 ---
 
 # Docs Sync
 
-Use this skill after a code change or while reviewing a PR. The goal is to keep documentation aligned with the implementation without rewriting unrelated docs.
+Keep documentation aligned with implementation. Do not rewrite unrelated docs.
 
-## Input
+For project paths, modules, and commands, read `reference.md` in this skill's directory.
 
-A changed feature, module, branch, or list of files. Include any known API endpoint, service, UI page, command, or behavior that changed.
+## Dynamic Context
 
-Good inputs:
-
-- "Sync docs for the cart quantity validation change."
-- "Check whether the checkout API docs match the current payment flow."
-- "Review docs affected by changes in the products admin page."
-
-## Working Directories
-
-- Backend commands run from: `BackEnd/tshirt-store-api/tshirt-api`
-- Frontend commands run from: `BackEnd/tshirt-store-api/tshirt-frontend`
-
-Always `cd` to the correct directory before running any command.
+!`git diff --name-only HEAD~3 2>/dev/null || true`
 
 ## Steps
 
-1. Identify the changed behavior and the files that implement it.
+1. Identify the changed behavior and files that implement it — cite `file:line`.
 2. Search for related documentation in:
-   - `README.md`
+   - `README.md` (root)
    - `BackEnd/tshirt-store-api/**/README.md`
-   - `BackEnd/tshirt-store-api/tshirt-api/docs`
-   - `docs`
-   - API examples or setup notes
-3. Compare docs against the implementation and tests.
-4. Update only documentation that is directly affected.
+   - `BackEnd/tshirt-store-api/tshirt-api/docs/`
+   - `docs/`
+   - API examples, setup notes, environment guides.
+3. Compare docs against implementation and tests.
+4. Update only documentation directly affected.
 5. If no docs need changes, say so and explain why.
-6. Record any docs that look outdated but are outside the current change.
-7. Suggest a validation command when documentation references executable setup or checks.
+6. Record docs that look outdated but are outside the current change.
+7. Suggest a validation command when docs reference executable setup.
 
 ## Rules
 
-- Do not invent behavior that is not present in code or tests.
+- Do not invent behavior not present in code or tests.
 - Do not rewrite broad documentation for a small code change.
-- Keep docs short, specific, and linked to actual commands or files.
+- Keep docs short, specific, linked to actual commands or files.
 - Do not include secrets, local tokens, or private environment values.
+- Cite documentation locations as `file:line`.
 
 ## Output
 
-Return a documentation sync report in this format:
-
 ```text
 Changed behavior:
+- file:line — description
 
 Docs reviewed:
-- ...
+- file — relevant/not relevant
 
 Docs updated:
-- ...
+- file:line — what changed and why
 
 No-change rationale:
-- ...
+- file — why it does not need updating
 
-Possible outdated docs outside scope:
-- ...
+Outdated docs outside scope:
+- file:line — what looks wrong
 
 Validation:
-- ...
+- command to verify documented behavior
 ```
-

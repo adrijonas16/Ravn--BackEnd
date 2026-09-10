@@ -1,74 +1,75 @@
 ---
 name: verify-change
-description: Verify a code change with executable checks and summarize evidence. Use this after a fix or improvement to run targeted checks before broader build/test commands.
+description: >
+  Verify a fix, improvement, or refactor works AFTER implementation.
+  Triggers: "verify", "check my change", "run checks", "does this work",
+  "validate the fix", "before committing", "is it safe to merge".
+  Produces executable evidence with pass/fail results.
+argument-hint: "[describe what was changed]"
+allowed-tools:
+  - Read
+  - Grep
+  - Glob
+  - Bash(npm run test *)
+  - Bash(npm run build *)
+  - Bash(npx eslint *)
+  - Bash(npx jest *)
 ---
 
 # Verify Change
 
-Use this skill after an implementation or when reviewing a branch. The goal is to produce evidence that the change works, not just a summary of files touched.
+Produce executable evidence that a change works. Not a list of files touched — actual test results.
 
-## Input
+For project paths, modules, and commands, read `reference.md` in this skill's directory.
 
-A completed or proposed code change, plus any relevant bug reproduction, commit, branch, or files touched.
+## Dynamic Context
 
-Good inputs:
-
-- "Verify the cart quantity validation fix."
-- "Verify this PR only changes backend behavior and all related checks pass."
-- "Verify this frontend change builds and lint passes."
-
-## Working Directories
-
-- Backend commands run from: `BackEnd/tshirt-store-api/tshirt-api`
-- Frontend commands run from: `BackEnd/tshirt-store-api/tshirt-frontend`
-
-Always `cd` to the correct directory before running any command.
+!`git diff --stat HEAD 2>/dev/null || true`
 
 ## Steps
 
-1. Identify the smallest targeted check that should prove the change.
-2. Run the targeted test, lint, typecheck, or build command from the correct project directory.
-3. If the targeted check fails, summarize the failure and stop with the smallest next fix.
-4. After the targeted check passes, run broader checks for the touched project area.
-5. If backend files changed, consider:
-   - `npm run test -- <spec-file> --runInBand`
-   - `npm run test -- --runInBand`
-   - `npm run build`
-   - `npx eslint "{src,apps,libs,test}/**/*.ts"`
-6. If frontend files changed, consider:
-   - `npm run lint`
-   - `npm run build`
-7. Distinguish real services from mocks or unit-test doubles.
-8. Record command names and important output lines.
-9. Report what remains untested or risky.
+1. Identify the smallest targeted check that proves the change.
+2. Run it from the correct working directory.
+3. If it fails:
+   - Summarize with `file:line` references.
+   - Propose the smallest next fix.
+   - After 3 consecutive failures, stop. Recommend `/investigate-task`.
+4. After targeted check passes, run broader checks:
+   - Backend: targeted test → full tests → build → lint.
+   - Frontend: build → lint.
+5. Distinguish real services from mocks/test doubles.
+6. Record each command, exit code, and important output lines.
+7. Report what remains untested or risky.
 
 ## Rules
 
-- Do not weaken or delete tests to make verification pass.
-- Do not hide warnings or errors. Summarize them and say whether they block the change.
-- Prefer targeted checks first, then broader checks.
-- If a command mutates files, mention it. For backend lint, prefer direct ESLint without `--fix` when verifying.
+- Never weaken or delete tests to make verification pass.
+- Never hide warnings or errors. Summarize and say whether they block.
+- Targeted checks first, then broader.
+- If a command mutates files, mention it. Prefer lint without `--fix`.
+- Cite specific test names and `file:line` for failures.
+- Stop after 3 consecutive failures.
 
 ## Output
-
-Return a verification report in this format:
 
 ```text
 Verification target:
 
 Commands run:
 - command: ...
+  directory: ...
   result: pass/fail
-  evidence: ...
+  evidence: file:line — detail
 
 Mocks vs real services:
 - ...
 
 Result:
-- ...
+- pass/fail with summary
 
 Limitations:
-- ...
+- what remains untested
+- integration gaps
 
 Recommended commit message:
 ...

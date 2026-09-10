@@ -1,58 +1,58 @@
 ---
 name: db-check
-description: Verify that Prisma schema, migrations, and DTOs are in sync. Use this after changing database models, adding fields, or modifying relations.
+description: >
+  Verify Prisma schema, migrations, and DTOs are in sync.
+  Triggers: "schema change", "add field", "new model", "migration", "prisma",
+  "DTO doesn't match schema", "missing column", "relation error",
+  "prisma validate", "migrate status".
+  Catches schema drift and field mismatches.
+argument-hint: "[model or field that changed]"
+allowed-tools:
+  - Read
+  - Grep
+  - Glob
+  - Bash(npx prisma validate)
+  - Bash(npx prisma migrate status)
+  - Bash(npm run build)
 ---
 
 # DB Check
 
-Use this skill when a change touches the database layer. The goal is to catch schema drift, missing migrations, and DTO mismatches before they reach runtime.
+Catch schema drift, missing migrations, and DTO mismatches before runtime errors.
 
-## Input
+For project paths, modules, and commands, read `reference.md` in this skill's directory.
 
-A changed model, field, relation, migration, or DTO. Include any known table, column, or Prisma model name.
+## Dynamic Context
 
-Good inputs:
-
-- "Check if the new `discount` field on Order is reflected in DTOs and migrations."
-- "Check whether the product variant schema matches the create-variant DTO."
-- "Check migration status after adding the `promoCode` relation."
-
-## Working Directories
-
-- Backend commands run from: `BackEnd/tshirt-store-api/tshirt-api`
-- Prisma schema: `BackEnd/tshirt-store-api/tshirt-api/prisma/schema.prisma`
-- Migrations: `BackEnd/tshirt-store-api/tshirt-api/prisma/migrations/`
-
-Always `cd` to the backend directory before running any command.
+!`cd BackEnd/tshirt-store-api/tshirt-api && npx prisma validate 2>&1 | tail -5 || true`
 
 ## Steps
 
-1. Read the relevant models in `prisma/schema.prisma`.
+1. Read relevant models in `prisma/schema.prisma` — cite `file:line`.
 2. Run `npx prisma validate` to check schema syntax.
-3. Run `npx prisma migrate status` to detect pending or failed migrations.
+3. Run `npx prisma migrate status` to detect pending/failed migrations.
 4. Compare schema fields against:
-   - Create DTOs (`create-*.dto.ts`)
-   - Update DTOs (`update-*.dto.ts`)
-   - Response DTOs or serialized outputs
-   - Service methods that read/write the model
+   - Create DTOs (`create-*.dto.ts`) — cite `file:line`.
+   - Update DTOs (`update-*.dto.ts`) — cite `file:line`.
+   - Response DTOs or serialized outputs.
+   - Service methods that read/write the model.
 5. Check for:
-   - Fields in schema but missing from DTOs (data not exposed or not accepted).
-   - Fields in DTOs but missing from schema (will fail at runtime).
-   - Enum mismatches between Prisma enums and TypeScript enums/types.
-   - Relation fields without proper `@relation` or cascade rules.
-   - Optional vs required mismatches (`?` in Prisma vs `@IsOptional()` in DTO).
-6. If a migration is needed, note it but do not run `migrate dev` without asking.
-7. Run `npm run build` to catch compile-time type errors.
+   - Fields in schema but missing from DTOs.
+   - Fields in DTOs but missing from schema (runtime failure).
+   - Enum mismatches (Prisma enum vs TypeScript enum/type).
+   - Relation fields without `@relation` or cascade rules.
+   - Optional vs required (`?` in Prisma vs `@IsOptional()` in DTO).
+6. If migration needed, note it but do NOT run `migrate dev` without asking.
+7. Run `npm run build` to catch Prisma client type errors.
 
 ## Rules
 
-- Do not run `npx prisma migrate dev` or `npx prisma db push` without user confirmation. These modify the database.
-- Do not assume a field is unused just because it is missing from a DTO. Check service code first.
+- NEVER run `prisma migrate dev` or `prisma db push` without user confirmation.
+- Do not assume a field is unused — check service code first.
 - Prefer adding missing DTO fields over removing schema fields.
+- Cite all findings with `file:line`.
 
 ## Output
-
-Return a database sync report in this format:
 
 ```text
 Models checked:
@@ -62,22 +62,17 @@ Schema validation:
 
 Migration status:
 - status: up to date / pending / failed
-- details: ...
 
 Schema vs DTOs:
-- model: ...
-  - aligned/mismatch: ...
-  - details: ...
+- model.field (schema.prisma:line) vs DTO (file:line)
+  - aligned/mismatch — detail
 
 Schema vs Services:
-- ...
+- model.field (schema.prisma:line) vs service (file:line)
 
 Enum alignment:
-- ...
+- PrismaEnum vs TypeScriptEnum — aligned/mismatch
 
 Recommended actions:
-- ...
-
-Commands to run:
 - ...
 ```
