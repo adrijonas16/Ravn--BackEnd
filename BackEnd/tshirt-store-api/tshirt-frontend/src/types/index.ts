@@ -102,6 +102,7 @@ export interface CartItem {
   colorName: string;
   imageUrl: string | null;
   unitPrice: number;
+  stock: number;
   quantity: number;
   lineTotal: number;
 }
