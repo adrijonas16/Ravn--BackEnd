@@ -185,6 +185,10 @@ function ProductPurchasePanel({
   onSkuChange: (variant: ProductVariant) => void;
   canBuy: boolean;
 }) {
+  const maxQuantity = selectedSku?.stock ?? 1;
+  const canDecreaseQuantity = quantity > 1;
+  const canIncreaseQuantity = Boolean(selectedSku && quantity < maxQuantity);
+
   return (
     <aside style={{
       position: 'sticky',
@@ -304,11 +308,23 @@ function ProductPurchasePanel({
 
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr 36px', border: '1px solid var(--border-strong)', background: 'var(--surface)' }}>
-          <button type="button" onClick={() => onQuantityChange(Math.max(1, quantity - 1))} aria-label="Decrease quantity" style={{ border: 'none', background: 'transparent', color: 'var(--text)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => onQuantityChange(Math.max(1, quantity - 1))}
+            disabled={!canDecreaseQuantity}
+            aria-label="Decrease quantity"
+            style={{ border: 'none', background: 'transparent', color: 'var(--text)', cursor: canDecreaseQuantity ? 'pointer' : 'not-allowed', display: 'grid', placeItems: 'center', opacity: canDecreaseQuantity ? 1 : 0.35 }}
+          >
             <Minus size={15} />
           </button>
           <span style={{ display: 'grid', placeItems: 'center', color: 'var(--text)', fontWeight: 900 }}>{quantity}</span>
-          <button type="button" onClick={() => onQuantityChange(quantity + 1)} aria-label="Increase quantity" style={{ border: 'none', background: 'transparent', color: 'var(--text)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => onQuantityChange(Math.min(maxQuantity, quantity + 1))}
+            disabled={!canIncreaseQuantity}
+            aria-label="Increase quantity"
+            style={{ border: 'none', background: 'transparent', color: 'var(--text)', cursor: canIncreaseQuantity ? 'pointer' : 'not-allowed', display: 'grid', placeItems: 'center', opacity: canIncreaseQuantity ? 1 : 0.35 }}
+          >
             <Plus size={15} />
           </button>
         </div>
@@ -579,8 +595,14 @@ export default function ProductDetailPage() {
             sizes={sizes}
             onAddToCart={handleAddToCart}
             onToggleLike={handleToggleLike}
-            onQuantityChange={setQuantity}
-            onSkuChange={setSelectedSku}
+            onQuantityChange={(nextQuantity) => {
+              const maxQuantity = selectedSku?.stock ?? 1;
+              setQuantity(Math.max(1, Math.min(maxQuantity, nextQuantity)));
+            }}
+            onSkuChange={(variant) => {
+              setSelectedSku(variant);
+              setQuantity((currentQuantity) => Math.max(1, Math.min(variant.stock, currentQuantity)));
+            }}
             canBuy={user?.role === 'client'}
           />
         </div>

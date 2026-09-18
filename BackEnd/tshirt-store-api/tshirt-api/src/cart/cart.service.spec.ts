@@ -28,6 +28,23 @@ describe('CartService', () => {
   });
 
   describe('addItem', () => {
+    it.each([0, -1])(
+      'should reject quantity %i before looking up the SKU',
+      async (quantity) => {
+        await expect(
+          service.addItem(1, { productVariantId: 1, quantity }),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.productVariant.findUnique).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should reject decimal quantities before looking up the SKU', async () => {
+      await expect(
+        service.addItem(1, { productVariantId: 1, quantity: 1.5 }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.productVariant.findUnique).not.toHaveBeenCalled();
+    });
+
     it('should throw NotFoundException for non-existent SKU', async () => {
       prisma.productVariant.findUnique.mockResolvedValue(null);
       await expect(
@@ -60,7 +77,68 @@ describe('CartService', () => {
     });
   });
 
+  describe('getOrCreateCart', () => {
+    it('should include available stock in formatted cart items', async () => {
+      prisma.cart.findFirst.mockResolvedValue({
+        id: 1,
+        items: [
+          {
+            id: 2,
+            productVariantId: 3,
+            productVariant: {
+              sku: 'TEE-BLK-M',
+              price: 25,
+              stock: 40,
+              product: {
+                name: 'Black Tee',
+                images: [{ publicUrl: 'https://example.com/black-tee.jpg' }],
+              },
+              size: { name: 'M' },
+              color: { name: 'Black' },
+            },
+            quantity: 2,
+          },
+        ],
+      });
+
+      await expect(service.getOrCreateCart(1)).resolves.toEqual(
+        expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              stock: 40,
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
   describe('updateItem', () => {
+    it.each([0, -1])(
+      'should reject quantity %i before reading the cart item',
+      async (quantity) => {
+        await expect(
+          service.updateItem({
+            userId: 1,
+            itemId: 1,
+            dto: { quantity },
+          }),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.cartItem.findFirst).not.toHaveBeenCalled();
+      },
+    );
+
+    it('should reject decimal quantities before reading the cart item', async () => {
+      await expect(
+        service.updateItem({
+          userId: 1,
+          itemId: 1,
+          dto: { quantity: 1.5 },
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.cartItem.findFirst).not.toHaveBeenCalled();
+    });
+
     it('should throw NotFoundException for non-existent cart item', async () => {
       prisma.cart.findFirst.mockResolvedValue({ id: 1 });
       prisma.cartItem.findFirst.mockResolvedValue(null);
