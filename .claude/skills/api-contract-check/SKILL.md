@@ -18,26 +18,32 @@ allowed-tools:
 
 Catch mismatches between NestJS API and React frontend before manual QA.
 
-For project paths, modules, and commands, read `reference.md` in this skill's directory.
+For project paths, modules, and commands, read `../reference.md`.
 
 ## Steps
 
 1. Identify the endpoint, controller method, DTOs, and service (backend).
 2. Identify the API client, TypeScript types, and consumer components (frontend).
-3. If both sides need investigation, launch parallel sub-agents:
+3. Decide investigation depth before launching agents:
+   - Investigate backend behavior when the API returns an incorrect response.
+   - Investigate frontend behavior when a correct API response is mishandled.
+   - Investigate both sides when a request/response contract changed or the mismatch source is unclear.
+   - Confirm the counterpart contract even when only one side needs deeper investigation.
+4. If both sides need deeper investigation, launch parallel sub-agents:
    - Backend agent: controller, DTOs, service, tests.
    - Frontend agent: API client, types, consumer components.
    - Consolidate before reporting.
-4. Compare request fields:
+5. Compare request fields:
    - Names, optional vs required, types (number/string/date).
    - Validation: `class-validator` decorators vs frontend form validation.
-5. Compare response fields:
+6. Compare response fields:
    - Names, nullable, arrays, nested objects.
    - Frontend assumptions about shape.
-6. Compare error behavior:
+7. Compare error behavior:
    - HTTP status codes, error message shape.
    - Frontend fallback/display logic.
-7. Cite every mismatch as `file:line` on both sides.
+8. Cite every mismatch as `file:line` on both sides.
+9. At the reporting step, load and fill `output-template.md`.
 
 ## Rules
 
@@ -48,32 +54,4 @@ For project paths, modules, and commands, read `reference.md` in this skill's di
 
 ## Output
 
-```text
-Contract checked:
-
-Backend:
-- endpoint: METHOD /path
-- controller: file:line
-- DTO: file:line
-- service: file:line
-
-Frontend:
-- API client: file:line
-- types: file:line
-- consumers: file:line
-
-Request contract:
-- field: aligned/mismatch — detail
-
-Response contract:
-- field: aligned/mismatch — detail
-
-Error contract:
-- status/shape: aligned/mismatch — detail
-
-Recommended fixes:
-- file:line — change description
-
-Follow-up issues:
-- ...
-```
+Use `output-template.md`.

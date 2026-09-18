@@ -19,7 +19,7 @@ allowed-tools:
 
 Find missing coverage before it becomes a production bug.
 
-For project paths, modules, and commands, read `reference.md` in this skill's directory.
+For project paths, modules, and commands, read `../reference.md`.
 
 ## Steps
 

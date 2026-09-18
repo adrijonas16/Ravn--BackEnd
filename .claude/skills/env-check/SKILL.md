@@ -18,7 +18,7 @@ allowed-tools:
 
 Catch missing or misconfigured variables before runtime errors.
 
-For project paths and commands, read `reference.md` in this skill's directory.
+For project paths and commands, read `../reference.md`.
 
 ## Dynamic Context
 

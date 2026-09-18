@@ -17,7 +17,7 @@ allowed-tools:
 
 Catch missing guards, leaked fields, and unsafe patterns before production.
 
-For project paths, auth architecture, and commands, read `reference.md` in this skill's directory.
+For project paths, auth architecture, and commands, read `../reference.md`.
 
 ## Steps
 

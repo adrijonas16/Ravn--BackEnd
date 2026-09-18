@@ -20,7 +20,7 @@ allowed-tools:
 
 Catch schema drift, missing migrations, and DTO mismatches before runtime errors.
 
-For project paths, modules, and commands, read `reference.md` in this skill's directory.
+For project paths, modules, and commands, read `../reference.md`.
 
 ## Dynamic Context
 

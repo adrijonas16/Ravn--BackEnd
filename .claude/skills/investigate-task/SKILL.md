@@ -20,22 +20,26 @@ allowed-tools:
 
 Turn a vague report into a scoped, testable change with known files, known risks, and a clear hypothesis. Do NOT write code.
 
-For project paths, modules, and commands, read `reference.md` in this skill's directory.
+For project paths, modules, and commands, read `../reference.md`.
 
 ## Dynamic Context
 
-!`git diff --name-only HEAD~3 2>/dev/null || true`
+!`if [ -n "$TASK_BASE_SHA" ]; then echo "Task changes compared with TASK_BASE_SHA=$TASK_BASE_SHA..HEAD:"; git diff --name-only "$TASK_BASE_SHA" HEAD; else echo "Task changes baseline missing: set TASK_BASE_SHA to the selected PR base or merge-base SHA; do not treat missing output as no changes."; fi; echo "Staged changes compared with index:"; git diff --name-only --cached; echo "Unstaged changes compared with working tree:"; git diff --name-only`
 
 ## Phase 1: Investigate
 
 1. Restate the problem: expected vs actual behavior.
-2. Determine scope: backend, frontend, or both.
-3. If both, launch parallel sub-agents:
+2. Select and state the task baseline:
+   - Prefer a PR base or merge-base SHA: `git diff --name-only <base-sha> HEAD`.
+   - Include staged and unstaged changes separately when they are in scope.
+   - If no baseline is available, report that explicitly; empty output must not imply no changes.
+3. Determine scope: backend, frontend, or both.
+4. If both, launch parallel sub-agents:
    - Backend agent: controllers, services, DTOs, tests.
    - Frontend agent: API clients, types, pages.
    - Consolidate before Phase 2.
-4. Read the smallest relevant area first. Never read entire modules.
-5. Cite every finding as `file:line`.
+5. Read the smallest relevant area first. Never read entire modules.
+6. Cite every finding as `file:line`.
 
 ## Phase 2: Analyze
 
@@ -72,6 +76,11 @@ For project paths, modules, and commands, read `reference.md` in this skill's di
 Problem:
 Expected behavior:
 Actual behavior:
+
+Baseline:
+- comparison: <base-sha>..HEAD / staged / unstaged
+- changed files: ...
+- missing baseline: yes/no — detail
 
 Phase 1 — Investigation:
 - file:line — finding
