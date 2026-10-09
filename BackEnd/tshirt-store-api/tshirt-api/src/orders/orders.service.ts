@@ -50,7 +50,7 @@ export class OrdersService {
       // Lock exclusivo en la fila del carrito: si otro request intenta leer el mismo
       // carrito, se bloquea aquí hasta que esta transacción termine (commit o rollback)
       const lockedCarts = await tx.$queryRaw<{ id: number }[]>`
-        SELECT id FROM "tshirt_store"."carts"
+        SELECT id FROM "carts"
         WHERE "user_id" = ${userId} AND "status" = 'active'
         LIMIT 1
         FOR UPDATE
