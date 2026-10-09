@@ -42,12 +42,27 @@ export class OrdersService {
     // Genera número de orden único usando timestamp en base 36 (ej: ORD-K5F3X2Y)
     const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
 
-    // TODA la lógica dentro de la transacción para evitar race conditions:
-    // Si dos requests llegan al mismo tiempo, solo uno podrá convertir el carrito
+    // Transacción con lock explícito para controlar concurrencia:
+    // 1. $transaction garantiza atomicidad (todo o nada)
+    // 2. SELECT FOR UPDATE garantiza que solo un request procese el carrito a la vez
+    //    — el segundo request espera a que el primero termine, luego lee 'converted'
     const order = await this.prisma.$transaction(async (tx) => {
-      // Busca el carrito activo DENTRO de la transacción
+      // Lock exclusivo en la fila del carrito: si otro request intenta leer el mismo
+      // carrito, se bloquea aquí hasta que esta transacción termine (commit o rollback)
+      const lockedCarts = await tx.$queryRaw<{ id: number }[]>`
+        SELECT id FROM "tshirt_store"."carts"
+        WHERE "user_id" = ${userId} AND "status" = 'active'
+        LIMIT 1
+        FOR UPDATE
+      `;
+
+      if (lockedCarts.length === 0) {
+        throw new BadRequestException('Cart is empty');
+      }
+
+      // Ahora que tenemos el lock, leemos el carrito completo con sus relaciones
       const cart = await tx.cart.findFirst({
-        where: { userId, status: 'active' },
+        where: { id: lockedCarts[0].id },
         include: {
           items: {
             include: {

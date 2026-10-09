@@ -19,6 +19,7 @@ describe('OrdersService', () => {
   beforeEach(async () => {
     prisma = {
       cart: { findFirst: jest.fn(), update: jest.fn() },
+      $queryRaw: jest.fn(),
       cartItem: { deleteMany: jest.fn() },
       address: { findFirst: jest.fn() },
       order: {
@@ -66,7 +67,7 @@ describe('OrdersService', () => {
     });
 
     it('should throw BadRequestException if cart is empty', async () => {
-      // Address pasa, pero el carrito está vacío (dentro de la transacción)
+      // Address pasa, pero el SELECT FOR UPDATE no encuentra carrito activo
       prisma.address.findFirst.mockResolvedValue({
         id: 1,
         recipientName: 'J',
@@ -75,7 +76,7 @@ describe('OrdersService', () => {
         city: 'c',
         countryCode: 'US',
       });
-      prisma.cart.findFirst.mockResolvedValue(null);
+      prisma.$queryRaw.mockResolvedValue([]);
       await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
         BadRequestException,
       );
@@ -90,6 +91,7 @@ describe('OrdersService', () => {
         city: 'c',
         countryCode: 'US',
       });
+      prisma.$queryRaw.mockResolvedValue([{ id: 1 }]);
       prisma.cart.findFirst.mockResolvedValue({ id: 1, items: [] });
       await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
         BadRequestException,
@@ -97,6 +99,15 @@ describe('OrdersService', () => {
     });
 
     it('should throw BadRequestException if stock insufficient', async () => {
+      prisma.address.findFirst.mockResolvedValue({
+        id: 1,
+        recipientName: 'J',
+        recipientPhone: '1',
+        line1: 'st',
+        city: 'c',
+        countryCode: 'US',
+      });
+      prisma.$queryRaw.mockResolvedValue([{ id: 1 }]);
       prisma.cart.findFirst.mockResolvedValue({
         id: 1,
         items: [
