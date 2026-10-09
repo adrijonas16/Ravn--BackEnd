@@ -138,6 +138,13 @@ export class PromoCodesService {
       throw new BadRequestException('Promo code usage limit reached');
     }
 
+    const userRedemption = await this.prisma.promoCodeRedemption.findFirst({
+      where: { promoCodeId: promo.id, userId },
+    });
+    if (userRedemption) {
+      throw new BadRequestException('You have already used this promo code');
+    }
+
     const rawDiscount =
       promo.discountType === 'percentage'
         ? subtotal * (Number(promo.discountValue) / 100)

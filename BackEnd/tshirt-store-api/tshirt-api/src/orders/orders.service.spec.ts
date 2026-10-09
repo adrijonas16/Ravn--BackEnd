@@ -18,7 +18,9 @@ describe('OrdersService', () => {
 
   beforeEach(async () => {
     prisma = {
-      cart: { findFirst: jest.fn() },
+      cart: { findFirst: jest.fn(), update: jest.fn() },
+      $queryRaw: jest.fn(),
+      cartItem: { deleteMany: jest.fn() },
       address: { findFirst: jest.fn() },
       order: {
         create: jest.fn(),
@@ -28,7 +30,12 @@ describe('OrdersService', () => {
         count: jest.fn(),
       },
       promoCode: { findUnique: jest.fn() },
-      promoCodeRedemption: { count: jest.fn(), create: jest.fn() },
+      promoCodeRedemption: {
+        count: jest.fn(),
+        create: jest.fn(),
+        deleteMany: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
       orderStatusHistory: { create: jest.fn() },
       productVariant: { update: jest.fn(), findUnique: jest.fn() },
       inventoryMovement: { create: jest.fn() },
@@ -51,45 +58,56 @@ describe('OrdersService', () => {
   });
 
   describe('create', () => {
-    it('should throw BadRequestException if cart is empty', async () => {
-      prisma.cart.findFirst.mockResolvedValue(null);
-      await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw BadRequestException if cart has no items', async () => {
-      prisma.cart.findFirst.mockResolvedValue({ id: 1, items: [] });
-      await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
     it('should throw NotFoundException if address not found', async () => {
-      prisma.cart.findFirst.mockResolvedValue({
-        id: 1,
-        items: [
-          {
-            productVariant: {
-              stock: 10,
-              price: 20,
-              sku: 'A',
-              product: { name: 'T', images: [] },
-              size: { name: 'M' },
-              color: { name: 'Red' },
-            },
-            productVariantId: 1,
-            quantity: 1,
-          },
-        ],
-      });
+      // Address se valida primero (antes de la transacción)
       prisma.address.findFirst.mockResolvedValue(null);
       await expect(service.create(1, { addressId: 999 })).rejects.toThrow(
         NotFoundException,
       );
     });
 
+    it('should throw BadRequestException if cart is empty', async () => {
+      // Address pasa, pero el SELECT FOR UPDATE no encuentra carrito activo
+      prisma.address.findFirst.mockResolvedValue({
+        id: 1,
+        recipientName: 'J',
+        recipientPhone: '1',
+        line1: 'st',
+        city: 'c',
+        countryCode: 'US',
+      });
+      prisma.$queryRaw.mockResolvedValue([]);
+      await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if cart has no items', async () => {
+      prisma.address.findFirst.mockResolvedValue({
+        id: 1,
+        recipientName: 'J',
+        recipientPhone: '1',
+        line1: 'st',
+        city: 'c',
+        countryCode: 'US',
+      });
+      prisma.$queryRaw.mockResolvedValue([{ id: 1 }]);
+      prisma.cart.findFirst.mockResolvedValue({ id: 1, items: [] });
+      await expect(service.create(1, { addressId: 1 })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it('should throw BadRequestException if stock insufficient', async () => {
+      prisma.address.findFirst.mockResolvedValue({
+        id: 1,
+        recipientName: 'J',
+        recipientPhone: '1',
+        line1: 'st',
+        city: 'c',
+        countryCode: 'US',
+      });
+      prisma.$queryRaw.mockResolvedValue([{ id: 1 }]);
       prisma.cart.findFirst.mockResolvedValue({
         id: 1,
         items: [
@@ -175,9 +193,32 @@ describe('OrdersService', () => {
       prisma.order.findUnique.mockResolvedValue({
         id: 1,
         userId: 999,
+        user: {
+          id: 999,
+          email: 'x@t.com',
+          firstName: 'X',
+          lastName: 'Y',
+          phone: null,
+        },
+        deliveryPerson: null,
         items: [],
         statusHistory: [],
         payments: [],
+        promoCode: null,
+        subtotal: 10,
+        discountAmount: 0,
+        totalAmount: 10,
+        orderNumber: 'ORD-1',
+        currentStatus: 'pending',
+        recipientName: 'X',
+        recipientPhone: '1',
+        shippingLine1: 'st',
+        shippingLine2: null,
+        shippingCity: 'c',
+        shippingStateRegion: null,
+        shippingPostalCode: null,
+        shippingCountryCode: 'US',
+        createdAt: new Date(),
       });
       await expect(service.findOne(1, clientUser)).rejects.toThrow(
         ForbiddenException,
@@ -188,9 +229,32 @@ describe('OrdersService', () => {
       const order = {
         id: 1,
         userId: 999,
+        user: {
+          id: 999,
+          email: 'x@t.com',
+          firstName: 'X',
+          lastName: 'Y',
+          phone: null,
+        },
+        deliveryPerson: null,
         items: [],
         statusHistory: [],
         payments: [],
+        promoCode: null,
+        subtotal: 10,
+        discountAmount: 0,
+        totalAmount: 10,
+        orderNumber: 'ORD-1',
+        currentStatus: 'pending',
+        recipientName: 'X',
+        recipientPhone: '1',
+        shippingLine1: 'st',
+        shippingLine2: null,
+        shippingCity: 'c',
+        shippingStateRegion: null,
+        shippingPostalCode: null,
+        shippingCountryCode: 'US',
+        createdAt: new Date(),
       };
       prisma.order.findUnique.mockResolvedValue(order);
       const result = await service.findOne(1, managerUser);

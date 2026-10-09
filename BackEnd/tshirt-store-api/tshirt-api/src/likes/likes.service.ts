@@ -12,7 +12,7 @@ export class LikesService {
 
   async like(userId: number, productId: number) {
     const product = await this.prisma.product.findFirst({
-      where: { id: productId, deletedAt: null },
+      where: { id: productId, deletedAt: null, status: 'active' },
     });
     if (!product) throw new NotFoundException('Product not found');
 

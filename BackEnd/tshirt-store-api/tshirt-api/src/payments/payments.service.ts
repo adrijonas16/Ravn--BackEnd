@@ -10,7 +10,6 @@ import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
 import { OrderStatus, PaymentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { LOW_STOCK_THRESHOLD } from '../common/constants/inventory.constants';
 
 @Injectable()
 export class PaymentsService {
@@ -55,6 +54,38 @@ export class PaymentsService {
       throw new BadRequestException('Order is not in pending status');
     if (!this.isStripeConfigured()) {
       throw new BadRequestException('Stripe is not configured');
+    }
+
+    // Reutiliza un PaymentIntent pendiente si ya existe para esta orden
+    // (evita crear duplicados si el frontend llama varias veces)
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: {
+        orderId,
+        method: 'payment_intent',
+        status: 'pending',
+        providerPaymentId: { not: null },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existingPayment?.providerPaymentId) {
+      // Recupera el clientSecret del PaymentIntent existente en Stripe
+      const existingIntent = await this.stripe.paymentIntents.retrieve(
+        existingPayment.providerPaymentId,
+      );
+      // Solo reutiliza si el intent sigue activo en Stripe
+      if (
+        existingIntent.status === 'requires_payment_method' ||
+        existingIntent.status === 'requires_confirmation' ||
+        existingIntent.status === 'requires_action'
+      ) {
+        return {
+          clientSecret: existingIntent.client_secret,
+          paymentIntentId: existingIntent.id,
+          amount: Number(order.totalAmount),
+          currency: order.currency,
+        };
+      }
     }
 
     // Stripe trabaja en centavos: $19.99 → 1999 centavos
@@ -222,37 +253,55 @@ export class PaymentsService {
     // Genera un número de orden único usando timestamp en base36 (ej: "ORD-LK5F2M")
     const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
 
-    // Crea la orden en la BD con sus items y el historial de estado inicial ("pending")
-    // "items: { create: {...} }" — crea el item relacionado en la misma operación (nested create)
-    const order = await this.prisma.order.create({
-      data: {
-        orderNumber,
-        userId,
-        subtotal: totalAmount,
-        totalAmount,
-        recipientName: address.recipientName,
-        recipientPhone: address.recipientPhone,
-        shippingLine1: address.line1,
-        shippingLine2: address.line2,
-        shippingCity: address.city,
-        shippingStateRegion: address.stateRegion,
-        shippingPostalCode: address.postalCode,
-        shippingCountryCode: address.countryCode,
-        items: {
-          create: {
-            productVariantId,
-            productName: sku.product.name,
-            skuCode: sku.sku,
-            sizeName: sku.size.name,
-            colorName: sku.color.name,
-            imageUrl: sku.product.images[0]?.publicUrl ?? null,
-            quantity,
-            unitPrice: sku.price,
-            lineTotal: totalAmount,
+    // Transacción: crea la orden y reserva stock atómicamente
+    const order = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          orderNumber,
+          userId,
+          subtotal: totalAmount,
+          totalAmount,
+          recipientName: address.recipientName,
+          recipientPhone: address.recipientPhone,
+          shippingLine1: address.line1,
+          shippingLine2: address.line2,
+          shippingCity: address.city,
+          shippingStateRegion: address.stateRegion,
+          shippingPostalCode: address.postalCode,
+          shippingCountryCode: address.countryCode,
+          items: {
+            create: {
+              productVariantId,
+              productName: sku.product.name,
+              skuCode: sku.sku,
+              sizeName: sku.size.name,
+              colorName: sku.color.name,
+              imageUrl: sku.product.images[0]?.publicUrl ?? null,
+              quantity,
+              unitPrice: sku.price,
+              lineTotal: totalAmount,
+            },
           },
+          statusHistory: { create: { toStatus: 'pending' } },
         },
-        statusHistory: { create: { toStatus: 'pending' } },
-      },
+      });
+
+      // Reserva stock al crear la orden (consistente con orders.service.create)
+      const updatedSku = await tx.productVariant.update({
+        where: { id: productVariantId },
+        data: { stock: { decrement: quantity } },
+      });
+      await tx.inventoryMovement.create({
+        data: {
+          productVariantId,
+          orderId: created.id,
+          movementType: 'sale',
+          quantityChange: -quantity,
+          stockAfter: updatedSku.stock,
+        },
+      });
+
+      return created;
     });
 
     // Crea una sesión de Stripe Checkout — genera una URL de pago hospedada por Stripe
@@ -384,6 +433,7 @@ export class PaymentsService {
       });
       if (!order || order.currentStatus !== OrderStatus.pending) return;
 
+      // Stock ya fue reservado al crear la orden — solo actualizamos estado y pago
       await tx.order.update({
         where: { id: orderId },
         data: { currentStatus: OrderStatus.paid },
@@ -409,44 +459,6 @@ export class PaymentsService {
           recipientEmail: order.user.email,
         },
       });
-
-      const managers = await tx.user.findMany({
-        where: { role: { name: 'manager' }, status: 'active' },
-        select: { id: true, email: true },
-      });
-
-      for (const item of order.items) {
-        const sku = await tx.productVariant.update({
-          where: { id: item.productVariantId },
-          data: { stock: { decrement: item.quantity } },
-        });
-
-        await tx.inventoryMovement.create({
-          data: {
-            productVariantId: item.productVariantId,
-            orderId,
-            movementType: 'sale',
-            quantityChange: -item.quantity,
-            stockAfter: sku.stock,
-          },
-        });
-
-        if (
-          sku.stock <= LOW_STOCK_THRESHOLD &&
-          sku.stock + item.quantity > LOW_STOCK_THRESHOLD &&
-          managers.length > 0
-        ) {
-          await tx.notification.createMany({
-            data: managers.map((manager) => ({
-              userId: manager.id,
-              productId: item.productVariant.productId,
-              productVariantId: item.productVariantId,
-              type: 'low_stock',
-              recipientEmail: manager.email,
-            })),
-          });
-        }
-      }
     });
   }
 }
