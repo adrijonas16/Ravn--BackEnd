@@ -52,22 +52,24 @@ export class WebhooksService {
       throw new BadRequestException('Invalid webhook signature');
     }
 
-    // Verificación de idempotencia: si ya procesamos este evento, lo ignoramos
-    // Stripe puede reenviar el mismo webhook si no recibe respuesta 200
-    // Sin esta verificación, podríamos cobrar dos veces o descontar stock doble
-    const existing = await this.prisma.stripeWebhookEvent.findUnique({
-      where: { stripeEventId: event.id },
-    });
-    if (existing) return { received: true, duplicate: true };
-
-    // Guarda el evento en la BD ANTES de procesarlo (para auditoría y debugging)
-    await this.prisma.stripeWebhookEvent.create({
-      data: {
-        stripeEventId: event.id,
-        eventType: event.type,
-        payload: event.data as any,
-      },
-    });
+    // Idempotencia atómica: intenta insertar el evento, si ya existe lo ignora
+    // Usa try/catch con unique constraint en vez de findUnique+create separados
+    // para evitar race condition cuando dos webhooks idénticos llegan al mismo tiempo
+    try {
+      await this.prisma.stripeWebhookEvent.create({
+        data: {
+          stripeEventId: event.id,
+          eventType: event.type,
+          payload: event.data as any,
+        },
+      });
+    } catch (error: any) {
+      // P2002 = unique constraint violation → el evento ya fue registrado
+      if (error.code === 'P2002') {
+        return { received: true, duplicate: true };
+      }
+      throw error;
+    }
 
     try {
       // Maneja el evento según su tipo — Stripe envía muchos tipos diferentes
@@ -189,20 +191,8 @@ export class WebhooksService {
       // Solo procesa si la orden existe y está en estado "pending"
       if (!order || order.currentStatus !== OrderStatus.pending) return;
 
-      const outOfStockItem = order.items.find(
-        (item) => item.productVariant.stock < item.quantity,
-      );
-      if (outOfStockItem) {
-        await tx.payment.updateMany({
-          where: { orderId, providerPaymentId },
-          data: { status: PaymentStatus.failed },
-        });
-        throw new BadRequestException(
-          `Insufficient stock for ${outOfStockItem.skuCode}`,
-        );
-      }
-
       // Cambia el estado de la orden de "pending" a "paid"
+      // (el stock ya fue reservado al crear la orden en orders.service.ts)
       await tx.order.update({
         where: { id: orderId },
         data: { currentStatus: OrderStatus.paid },
@@ -231,41 +221,32 @@ export class WebhooksService {
         },
       });
 
-      // Por cada item de la orden: descuenta stock y registra el movimiento de inventario
+      // Verifica alertas de stock bajo (el stock ya fue decrementado al crear la orden)
+      // Notifica siempre que el stock esté bajo el umbral, pero solo si no se envió
+      // una notificación para ese SKU en las últimas 24 horas (evita spam)
       for (const item of order.items) {
-        // decrement: operación atómica de Prisma — resta la cantidad directamente en la BD
-        // Más seguro que leer → restar → guardar (evita race conditions)
-        const sku = await tx.productVariant.update({
+        const sku = await tx.productVariant.findUnique({
           where: { id: item.productVariantId },
-          data: { stock: { decrement: item.quantity } },
         });
+        if (!sku || sku.stock > LOW_STOCK_THRESHOLD) continue;
 
-        // Registra el movimiento de inventario para trazabilidad
-        await tx.inventoryMovement.create({
-          data: {
+        const recentNotification = await tx.notification.findFirst({
+          where: {
             productVariantId: item.productVariantId,
-            orderId,
-            movementType: 'sale',
-            quantityChange: -item.quantity,
-            stockAfter: sku.stock,
+            type: 'low_stock',
+            createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
           },
         });
+        if (recentNotification) continue;
 
-        // Alerta de stock bajo: se activa cuando el stock CRUZA el umbral de 3
-        // La condición verifica que ANTES tenía más de 3 y AHORA tiene 3 o menos
-        if (
-          sku.stock <= LOW_STOCK_THRESHOLD &&
-          sku.stock + item.quantity > LOW_STOCK_THRESHOLD
-        ) {
-          this.logger.log(
-            `Low stock alert: SKU ${item.productVariantId} now at ${sku.stock}`,
-          );
-          lowStockJobs.push({
-            productId: item.productVariant.productId,
-            productVariantId: item.productVariantId,
-            stock: sku.stock,
-          });
-        }
+        this.logger.log(
+          `Low stock alert: SKU ${item.productVariantId} now at ${sku.stock}`,
+        );
+        lowStockJobs.push({
+          productId: item.productVariant.productId,
+          productVariantId: item.productVariantId,
+          stock: sku.stock,
+        });
       }
     });
 
@@ -286,7 +267,10 @@ export class WebhooksService {
     await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        include: { user: { select: { id: true, email: true } } },
+        include: {
+          user: { select: { id: true, email: true } },
+          items: true,
+        },
       });
       if (!order || order.currentStatus !== OrderStatus.pending) return;
 
@@ -312,6 +296,28 @@ export class WebhooksService {
           toStatus: OrderStatus.cancelled,
           reason,
         },
+      });
+
+      // Restaura stock reservado al crear la orden
+      for (const item of order.items) {
+        const sku = await tx.productVariant.update({
+          where: { id: item.productVariantId },
+          data: { stock: { increment: item.quantity } },
+        });
+        await tx.inventoryMovement.create({
+          data: {
+            productVariantId: item.productVariantId,
+            orderId,
+            movementType: 'cancellation',
+            quantityChange: item.quantity,
+            stockAfter: sku.stock,
+          },
+        });
+      }
+
+      // Libera uso del promo code si existía
+      await tx.promoCodeRedemption.deleteMany({
+        where: { orderId },
       });
 
       await tx.notification.create({

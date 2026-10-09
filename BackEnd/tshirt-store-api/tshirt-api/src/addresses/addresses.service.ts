@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
@@ -53,7 +57,24 @@ export class AddressesService {
   }
 
   async remove(userId: number, addressId: number) {
-    await this.ensureOwnAddress(userId, addressId);
+    const address = await this.ensureOwnAddress(userId, addressId);
+
+    // Verifica si hay órdenes activas que usen esta dirección (por snapshot)
+    const activeOrders = await this.prisma.order.count({
+      where: {
+        userId,
+        currentStatus: { in: ['pending', 'paid', 'processing', 'shipped'] },
+        shippingLine1: address.line1,
+        shippingCity: address.city,
+        recipientName: address.recipientName,
+      },
+    });
+    if (activeOrders > 0) {
+      throw new BadRequestException(
+        `Cannot delete address with ${activeOrders} active order(s) using it`,
+      );
+    }
+
     await this.prisma.address.delete({ where: { id: addressId } });
   }
 

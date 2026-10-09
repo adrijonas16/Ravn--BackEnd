@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import { PaymentStatus } from '@prisma/client';
 import { WebhooksService } from './webhooks.service';
 
@@ -25,6 +24,7 @@ describe('WebhooksService', () => {
         updateMany: jest.fn(),
       },
       productVariant: {
+        findUnique: jest.fn(),
         update: jest.fn(),
       },
       inventoryMovement: {
@@ -36,6 +36,10 @@ describe('WebhooksService', () => {
       notification: {
         create: jest.fn(),
         createMany: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      promoCodeRedemption: {
+        deleteMany: jest.fn(),
       },
     };
     prisma = {
@@ -59,7 +63,8 @@ describe('WebhooksService', () => {
     );
   });
 
-  it('should mark successful payment, decrement stock, and create inventory movement', async () => {
+  it('should mark successful payment and update order status (stock already reserved)', async () => {
+    // Stock ya fue decrementado al crear la orden — el webhook solo cambia estado
     tx.order.findUnique.mockResolvedValue({
       id: 1,
       currentStatus: 'pending',
@@ -67,13 +72,13 @@ describe('WebhooksService', () => {
       items: [
         {
           productVariantId: 10,
-          productVariant: { stock: 8, productId: 20 },
+          productVariant: { stock: 6, productId: 20 },
           quantity: 2,
           skuCode: 'TEE-BLK-M',
         },
       ],
     });
-    tx.productVariant.update.mockResolvedValue({ stock: 6 });
+    tx.productVariant.findUnique.mockResolvedValue({ stock: 6 });
 
     await (service as any).processPaymentSuccess(1, 'cs_test_123');
 
@@ -92,25 +97,15 @@ describe('WebhooksService', () => {
         recipientEmail: 'client@test.com',
       },
     });
-    expect(tx.productVariant.update).toHaveBeenCalledWith({
-      where: { id: 10 },
-      data: { stock: { decrement: 2 } },
-    });
-    expect(tx.inventoryMovement.create).toHaveBeenCalledWith({
-      data: {
-        productVariantId: 10,
-        orderId: 1,
-        movementType: 'sale',
-        quantityChange: -2,
-        stockAfter: 6,
-      },
-    });
+    // Stock NO se decrementa aquí — ya fue reservado al crear la orden
+    expect(tx.productVariant.update).not.toHaveBeenCalled();
+    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
     expect(
       notificationsQueue.enqueueLowStockNotification,
     ).not.toHaveBeenCalled();
   });
 
-  it('should enqueue low stock notifications after stock crosses threshold', async () => {
+  it('should enqueue low stock notifications when stock is below threshold', async () => {
     tx.order.findUnique.mockResolvedValue({
       id: 1,
       currentStatus: 'pending',
@@ -118,13 +113,14 @@ describe('WebhooksService', () => {
       items: [
         {
           productVariantId: 10,
-          productVariant: { stock: 4, productId: 20 },
+          productVariant: { stock: 2, productId: 20 },
           quantity: 2,
           skuCode: 'TEE-BLK-M',
         },
       ],
     });
-    tx.productVariant.update.mockResolvedValue({ stock: 2 });
+    // Stock actual = 2, antes de la venta era 4 (2 + quantity 2), cruza umbral de 3
+    tx.productVariant.findUnique.mockResolvedValue({ stock: 2 });
 
     await (service as any).processPaymentSuccess(1, 'cs_test_123');
 
@@ -137,39 +133,12 @@ describe('WebhooksService', () => {
     );
   });
 
-  it('should fail payment and not decrement stock when inventory is insufficient', async () => {
-    tx.order.findUnique.mockResolvedValue({
-      id: 1,
-      currentStatus: 'pending',
-      user: { id: 7, email: 'client@test.com' },
-      items: [
-        {
-          productVariantId: 10,
-          productVariant: { stock: 1, productId: 20 },
-          quantity: 2,
-          skuCode: 'TEE-BLK-M',
-        },
-      ],
-    });
-
-    await expect(
-      (service as any).processPaymentSuccess(1, 'cs_test_123'),
-    ).rejects.toThrow(BadRequestException);
-
-    expect(tx.payment.updateMany).toHaveBeenCalledWith({
-      where: { orderId: 1, providerPaymentId: 'cs_test_123' },
-      data: { status: PaymentStatus.failed },
-    });
-    expect(tx.order.update).not.toHaveBeenCalled();
-    expect(tx.productVariant.update).not.toHaveBeenCalled();
-    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
-  });
-
   it('should mark failed payment without changing stock or order status', async () => {
     tx.order.findUnique.mockResolvedValue({
       id: 1,
       currentStatus: 'pending',
       user: { id: 7, email: 'client@test.com' },
+      items: [],
     });
 
     await (service as any).processPaymentFailure(
@@ -188,12 +157,14 @@ describe('WebhooksService', () => {
     expect(tx.productVariant.update).not.toHaveBeenCalled();
   });
 
-  it('should cancel pending order when checkout session expires', async () => {
+  it('should cancel pending order, restore stock, and free promo when checkout expires', async () => {
     tx.order.findUnique.mockResolvedValue({
       id: 1,
       currentStatus: 'pending',
       user: { id: 7, email: 'client@test.com' },
+      items: [{ productVariantId: 10, quantity: 2 }],
     });
+    tx.productVariant.update.mockResolvedValue({ stock: 10 });
 
     await (service as any).processPaymentFailure(
       1,
@@ -203,10 +174,6 @@ describe('WebhooksService', () => {
       'Stripe checkout session expired',
     );
 
-    expect(tx.payment.updateMany).toHaveBeenCalledWith({
-      where: { orderId: 1, providerPaymentId: 'cs_test_123' },
-      data: { status: PaymentStatus.cancelled },
-    });
     expect(tx.order.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: {
@@ -214,7 +181,21 @@ describe('WebhooksService', () => {
         cancelledAt: expect.any(Date),
       },
     });
-    expect(tx.productVariant.update).not.toHaveBeenCalled();
-    expect(tx.inventoryMovement.create).not.toHaveBeenCalled();
+    // Stock must be restored
+    expect(tx.productVariant.update).toHaveBeenCalledWith({
+      where: { id: 10 },
+      data: { stock: { increment: 2 } },
+    });
+    expect(tx.inventoryMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        productVariantId: 10,
+        movementType: 'cancellation',
+        quantityChange: 2,
+      }),
+    });
+    // Promo code redemption must be freed
+    expect(tx.promoCodeRedemption.deleteMany).toHaveBeenCalledWith({
+      where: { orderId: 1 },
+    });
   });
 });
