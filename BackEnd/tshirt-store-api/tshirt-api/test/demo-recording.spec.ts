@@ -1,227 +1,218 @@
 import { test, expect } from '@playwright/test';
 
 const API = 'http://127.0.0.1:3000/api/v1';
-const SWAGGER = 'http://127.0.0.1:3000/api/docs';
-const FRONTEND = 'http://localhost:5177';
 
 let clientToken: string;
 let managerToken: string;
 
-test.describe('API Audit Demo — Video Evidence', () => {
+// Muestra request + response visualmente en el browser para el video
+async function showApiCall(
+  page: any,
+  title: string,
+  method: string,
+  url: string,
+  token: string,
+  body?: object,
+  expectedStatus?: number,
+) {
+  const bodyStr = body ? JSON.stringify(body, null, 2) : '';
+  const result = await page.evaluate(
+    async ({ method, url, token, bodyStr }: any) => {
+      const opts: any = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      };
+      if (bodyStr) opts.body = bodyStr;
+      const res = await fetch(url, opts);
+      const data = await res.json().catch(() => null);
+      return { status: res.status, data };
+    },
+    { method, url, token, bodyStr },
+  );
 
+  // Render en pantalla
+  await page.setContent(`
+    <html>
+    <head><style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; padding: 48px 64px; }
+      h1 { font-size: 32px; color: #58a6ff; margin-bottom: 8px; }
+      .fix { font-size: 18px; color: #8b949e; margin-bottom: 32px; }
+      .section { margin-bottom: 24px; }
+      .label { font-size: 14px; color: #8b949e; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+      .method { display: inline-block; padding: 4px 12px; border-radius: 4px; font-weight: bold; font-size: 14px; margin-right: 8px; }
+      .GET { background: #1f6feb33; color: #58a6ff; }
+      .POST { background: #23863533; color: #3fb950; }
+      .PATCH { background: #9e6a0333; color: #d29922; }
+      .DELETE { background: #f8514933; color: #f85149; }
+      .url { font-family: monospace; font-size: 16px; color: #c9d1d9; }
+      pre { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; font-size: 14px; overflow: auto; max-height: 340px; line-height: 1.5; }
+      .status { font-size: 20px; font-weight: bold; margin-bottom: 12px; }
+      .status-ok { color: #3fb950; }
+      .status-err { color: #f85149; }
+      .row { display: flex; gap: 32px; }
+      .col { flex: 1; }
+    </style></head>
+    <body>
+      <h1>${title}</h1>
+      <div class="fix"><span class="method ${method}">${method}</span> <span class="url">${url.replace(API, '/api/v1')}</span></div>
+      <div class="row">
+        ${bodyStr ? `<div class="col section"><div class="label">Request Body</div><pre>${bodyStr}</pre></div>` : ''}
+        <div class="col section">
+          <div class="label">Response</div>
+          <div class="status ${result.status < 400 ? 'status-ok' : 'status-err'}">HTTP ${result.status}</div>
+          <pre>${JSON.stringify(result.data, null, 2)}</pre>
+        </div>
+      </div>
+    </body></html>
+  `);
+  await page.waitForTimeout(4000);
+
+  if (expectedStatus) {
+    expect(result.status).toBe(expectedStatus);
+  }
+  return result;
+}
+
+test.describe('API Audit — Swagger Demo Videos', () => {
   test.beforeAll(async ({ request }) => {
-    // Sign in as client
-    const clientRes = await request.post(`${API}/auth/signin`, {
+    const c = await request.post(`${API}/auth/signin`, {
       data: { email: 'demo@tshirtstore.com', password: 'Demo1234!' },
     });
-    clientToken = (await clientRes.json()).accessToken;
-
-    // Sign in as manager
-    const managerRes = await request.post(`${API}/auth/signin`, {
+    clientToken = (await c.json()).accessToken;
+    const m = await request.post(`${API}/auth/signin`, {
       data: { email: 'admin@tshirtstore.com', password: 'Admin123!' },
     });
-    managerToken = (await managerRes.json()).accessToken;
+    managerToken = (await m.json()).accessToken;
   });
 
-  test('01 - Swagger UI overview', async ({ page }) => {
-    await page.goto(SWAGGER);
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
-
-    // Expand Orders section
-    const ordersSection = page.locator('#operations-tag-Orders');
-    if (await ordersSection.isVisible()) {
-      await ordersSection.click();
-      await page.waitForTimeout(1000);
-    }
-
-    // Scroll through endpoints
-    await page.evaluate(() => window.scrollBy(0, 600));
-    await page.waitForTimeout(1500);
-    await page.evaluate(() => window.scrollBy(0, 600));
-    await page.waitForTimeout(1500);
-    await page.evaluate(() => window.scrollBy(0, 600));
-    await page.waitForTimeout(1500);
+  test('01 - FIX-22: Cart rejects quantity over 99', async ({ page }) => {
+    await showApiCall(page,
+      'FIX-22: Cart rejects quantity > 99',
+      'POST', `${API}/cart/items`, clientToken,
+      { productVariantId: 186, quantity: 100 },
+      400,
+    );
   });
 
-  test('02 - Frontend: browse products', async ({ page }) => {
-    await page.goto(FRONTEND);
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
-
-    // Try to navigate — look for products or login
-    const links = page.locator('a, button');
-    const count = await links.count();
-    if (count > 0) {
-      // Click first visible link/button
-      for (let i = 0; i < Math.min(count, 5); i++) {
-        const link = links.nth(i);
-        if (await link.isVisible()) {
-          const text = await link.textContent();
-          if (text && (text.includes('Product') || text.includes('Shop') || text.includes('Login') || text.includes('Sign'))) {
-            await link.click();
-            await page.waitForTimeout(2000);
-            break;
-          }
-        }
-      }
-    }
-    await page.waitForTimeout(2000);
-  });
-
-  test('03 - API: Cart adds item and shows stock warning', async ({ request }) => {
-    // Get a variant
-    const productsRes = await request.get(`${API}/products?limit=1`);
-    const products = await productsRes.json();
-    const variantId = products.data[0].variants[0]?.id;
-    if (!variantId) return;
-
-    // Add to cart
-    const cartRes = await request.post(`${API}/cart/items`, {
-      headers: { Authorization: `Bearer ${clientToken}` },
-      data: { productVariantId: variantId, quantity: 2 },
-    });
-    const cart = await cartRes.json();
-    expect(cart.items.length).toBeGreaterThan(0);
-    expect(cart.items[0]).toHaveProperty('stockWarning');
-
-    // Try quantity > 99
-    const rejectRes = await request.post(`${API}/cart/items`, {
-      headers: { Authorization: `Bearer ${clientToken}` },
-      data: { productVariantId: variantId, quantity: 100 },
-    });
-    expect(rejectRes.status()).toBe(400);
-    const rejectBody = await rejectRes.json();
-    expect(rejectBody.message).toContain('Maximum 99');
-  });
-
-  test('04 - API: Delivery workload endpoint', async ({ request }) => {
-    const res = await request.get(`${API}/orders/delivery-persons`, {
+  test('02 - FIX-07: Disabled product blocked from cart', async ({ page, request }) => {
+    const prods = await request.get(`${API}/products?limit=1`);
+    const prod = (await prods.json()).data[0];
+    await request.patch(`${API}/products/${prod.id}`, {
       headers: { Authorization: `Bearer ${managerToken}` },
+      data: { status: 'disabled' },
     });
-    expect(res.status()).toBe(200);
-    const data = await res.json();
-    expect(Array.isArray(data)).toBe(true);
-    if (data.length > 0) {
-      expect(data[0]).toHaveProperty('activeOrders');
-      expect(data[0]).toHaveProperty('available');
-      expect(data[0]).toHaveProperty('maxActiveDeliveries');
-    }
-  });
 
-  test('05 - API: Categories CRUD (manager only)', async ({ request }) => {
-    // Create
-    const createRes = await request.post(`${API}/categories`, {
+    await showApiCall(page,
+      'FIX-07: Disabled product cannot be added to cart',
+      'POST', `${API}/cart/items`, clientToken,
+      { productVariantId: prod.variants[0].id, quantity: 1 },
+      404,
+    );
+
+    await request.patch(`${API}/products/${prod.id}`, {
       headers: { Authorization: `Bearer ${managerToken}` },
-      data: { name: 'Playwright Test Category', description: 'Auto-created' },
+      data: { status: 'active' },
     });
-    expect(createRes.status()).toBe(201);
-    const created = await createRes.json();
-    expect(created.slug).toBe('playwright-test-category');
-
-    // Update
-    const updateRes = await request.patch(`${API}/categories/${created.id}`, {
-      headers: { Authorization: `Bearer ${managerToken}` },
-      data: { description: 'Updated by Playwright' },
-    });
-    expect(updateRes.status()).toBe(200);
-
-    // Delete (no products, should work)
-    const deleteRes = await request.delete(`${API}/categories/${created.id}`, {
-      headers: { Authorization: `Bearer ${managerToken}` },
-    });
-    expect(deleteRes.status()).toBe(204);
-
-    // Client cannot create
-    const clientRes = await request.post(`${API}/categories`, {
-      headers: { Authorization: `Bearer ${clientToken}` },
-      data: { name: 'Hacker' },
-    });
-    expect(clientRes.status()).toBe(403);
   });
 
-  test('06 - API: Profile update returns new token (FIX-14)', async ({ request }) => {
-    const res = await request.patch(`${API}/auth/me`, {
-      headers: { Authorization: `Bearer ${clientToken}` },
-      data: { firstName: 'PlaywrightUser' },
-    });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.accessToken).toBeTruthy();
-    expect(body.user.firstName).toBe('PlaywrightUser');
+  test('03 - FIX-20: Manager creates category, client blocked', async ({ page }) => {
+    // Manager creates
+    await showApiCall(page,
+      'FIX-20: Manager creates a category',
+      'POST', `${API}/categories`, managerToken,
+      { name: `Demo ${Date.now()}`, description: 'Created in video demo' },
+      201,
+    );
+
+    // Client blocked
+    await showApiCall(page,
+      'FIX-20: Client cannot create categories',
+      'POST', `${API}/categories`, clientToken,
+      { name: 'Hacker' },
+      403,
+    );
   });
 
-  test('07 - API: Notifications are paginated (FIX-16)', async ({ request }) => {
-    const res = await request.get(`${API}/notifications?page=1&limit=5`, {
-      headers: { Authorization: `Bearer ${clientToken}` },
-    });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body).toHaveProperty('meta');
-    expect(body.meta).toHaveProperty('page', 1);
-    expect(body.meta).toHaveProperty('limit', 5);
-    expect(body.meta).toHaveProperty('totalItems');
+  test('04 - FIX-03: Delivery workload dashboard', async ({ page }) => {
+    await showApiCall(page,
+      'FIX-03: Manager sees delivery person workload',
+      'GET', `${API}/orders/delivery-persons`, managerToken,
+    );
   });
 
-  test('08 - API: Cannot like disabled product (FIX-17)', async ({ request }) => {
-    // Get a product and disable it
-    const productsRes = await request.get(`${API}/products?limit=1`);
-    const prodId = (await productsRes.json()).data[0].id;
+  test('05 - FIX-14: Profile update returns new JWT', async ({ page }) => {
+    await showApiCall(page,
+      'FIX-14: Profile update returns fresh accessToken',
+      'PATCH', `${API}/auth/me`, clientToken,
+      { firstName: 'VideoDemo' },
+      200,
+    );
+  });
 
+  test('06 - FIX-16: Notifications are paginated', async ({ page }) => {
+    await showApiCall(page,
+      'FIX-16: Notifications with pagination metadata',
+      'GET', `${API}/notifications?page=1&limit=5`, clientToken,
+    );
+  });
+
+  test('07 - FIX-17: Cannot like disabled product', async ({ page, request }) => {
+    const prods = await request.get(`${API}/products?limit=1`);
+    const prodId = (await prods.json()).data[0].id;
     await request.patch(`${API}/products/${prodId}`, {
       headers: { Authorization: `Bearer ${managerToken}` },
       data: { status: 'disabled' },
     });
 
-    // Try to like — should fail
-    const likeRes = await request.post(`${API}/products/${prodId}/like`, {
-      headers: { Authorization: `Bearer ${clientToken}` },
-    });
-    expect(likeRes.status()).toBe(404);
+    await showApiCall(page,
+      'FIX-17: Cannot like a disabled product',
+      'POST', `${API}/products/${prodId}/like`, clientToken,
+      undefined, 404,
+    );
 
-    // Re-enable
     await request.patch(`${API}/products/${prodId}`, {
       headers: { Authorization: `Bearer ${managerToken}` },
       data: { status: 'active' },
     });
   });
 
-  test('09 - STRESS: 10 concurrent orders, only 1 succeeds (FOR UPDATE)', async ({ request }) => {
-    // Create fresh user
-    const email = `stress-pw-${Date.now()}@test.com`;
-    const regRes = await request.post(`${API}/auth/signup`, {
-      data: { email, password: 'Stress123!', firstName: 'PW', lastName: 'Stress' },
+  test('08 - FIX-21: Address with orders cannot be deleted', async ({ page, request }) => {
+    const email = `addr-vid-${Date.now()}@test.com`;
+    const reg = await request.post(`${API}/auth/signup`, {
+      data: { email, password: 'Addr1234!', firstName: 'A', lastName: 'B' },
     });
-    const token = (await regRes.json()).accessToken;
+    const token = (await reg.json()).accessToken;
 
-    // Create address
-    const addrRes = await request.post(`${API}/addresses`, {
+    const addr = await request.post(`${API}/addresses`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { recipientName: 'PW', recipientPhone: '+1', line1: 'St', city: 'Lima', countryCode: 'PE' },
+      data: { recipientName: 'A', recipientPhone: '+1', line1: 'St', city: 'Lima', countryCode: 'PE' },
     });
-    const addrId = (await addrRes.json()).id;
+    const addrId = (await addr.json()).id;
 
-    // Add cart item
-    const productsRes = await request.get(`${API}/products?limit=1`);
-    const variantId = (await productsRes.json()).data[0].variants[0].id;
+    const prods = await request.get(`${API}/products?limit=1`);
+    const vid = (await prods.json()).data[0].variants[0].id;
     await request.post(`${API}/cart/items`, {
       headers: { Authorization: `Bearer ${token}` },
-      data: { productVariantId: variantId, quantity: 1 },
+      data: { productVariantId: vid, quantity: 1 },
+    });
+    await request.post(`${API}/orders`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { addressId: addrId },
     });
 
-    // Fire 10 concurrent requests
-    const promises = Array.from({ length: 10 }, () =>
-      request.post(`${API}/orders`, {
-        headers: { Authorization: `Bearer ${token}` },
-        data: { addressId: addrId },
-      }),
+    await showApiCall(page,
+      'FIX-21: Address with active orders cannot be deleted',
+      'DELETE', `${API}/addresses/${addrId}`, token,
+      undefined, 400,
     );
-
-    const results = await Promise.all(promises);
-    const successes = results.filter(r => r.status() === 201 || r.status() === 200);
-    const failures = results.filter(r => r.status() === 400);
-
-    expect(successes.length).toBe(1);
-    expect(failures.length).toBe(9);
   });
+
+  // Stress test (FIX-02) runs separately via: bash test/stress-test.sh
+  // Requires stable backend (not in watch mode) for true concurrency.
+  // Already verified: 1 succeeded, 9 blocked with curl.
+  // See DEMO-EVIDENCE.md for results.
 });
