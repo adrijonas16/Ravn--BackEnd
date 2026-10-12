@@ -2,175 +2,228 @@
 
 This repository contains the T-Shirt Store backend and frontend under `BackEnd/tshirt-store-api`.
 
-## Backend
+## Stack
 
-- Path: `BackEnd/tshirt-store-api/tshirt-api`
-- Framework: NestJS, Prisma, Jest
-- Targeted tests: `npm run test -- <pattern> --runInBand`
-- Full unit tests: `npm run test -- --runInBand`
-- E2E tests: `TEST_DATABASE_URL="postgresql://postgres:pass_nerdery@127.0.0.1:5434/nerdery_db?schema=tshirt_store_test" QUEUES_ENABLED=false npx jest --config ./test/jest-e2e.json --runInBand`
-- Build: `npm run build`
-- Lint: `npx eslint "{src,apps,libs,test}/**/*.ts"`
-- Playwright: `npx playwright test`
+- **Backend**: NestJS 11 + Prisma 5 + PostgreSQL + TypeScript
+- **Auth**: JWT (passport-jwt) + bcrypt + refresh token rotation
+- **Authorization**: CASL (role-based: manager, client, delivery_person)
+- **Payments**: Stripe (PaymentIntent + Checkout Sessions)
+- **Queue**: BullMQ + Redis (notifications, emails)
+- **Storage**: AWS S3 (product images)
+- **Logging**: Pino (nestjs-pino) with sensitive field redaction
+- **Security**: Helmet, ThrottlerGuard (rate limiting), CORS
+- **Scheduling**: @nestjs/schedule (abandoned order cleanup)
+- **Frontend**: React + Vite + TypeScript
 
-## Frontend
+## Commands
 
-- Path: `BackEnd/tshirt-store-api/tshirt-frontend`
-- Framework: React, Vite, TypeScript
-- Build check: `npm run build`
-- Lint check: `npm run lint`
+```bash
+# Backend (from tshirt-store-api/tshirt-api/)
+npm run build                    # NestJS build
+npm run start:dev                # dev server with watch
+npm run test -- --runInBand      # all unit tests
+npm run test -- <pattern>        # targeted tests
+npm run test:cov                 # coverage report
+npm run seed                     # seed database
+npx eslint "{src,apps,libs,test}/**/*.ts"  # lint
 
-## Working Rules
+# E2E tests (needs running Postgres)
+TEST_DATABASE_URL="postgresql://..." QUEUES_ENABLED=false \
+  npx jest --config ./test/jest-e2e.json --runInBand
 
-- Keep changes scoped to the requested feature or bug.
-- Prefer existing service tests for backend behavior.
-- Add or update tests before changing behavior when reproducing a bug.
-- Treat external services such as Stripe, Redis, S3, and email as mocked unless explicitly configured.
-- Do not commit secrets or local environment files.
+# Playwright (needs running backend)
+npx playwright test
 
-## Branch and PR Conventions
+# Frontend (from tshirt-store-api/tshirt-frontend/)
+npm run dev                      # dev server
+npm run build                    # production build
+npm run lint                     # lint check
 
-- Branch naming: `<type>/<short-description>` (e.g., `fix/cart-quantity-validation`, `feat/promo-codes`, `chore/update-deps`).
-- Commit messages: start with a verb in imperative mood (e.g., "Add", "Fix", "Update", "Remove"). Keep the first line under 72 characters.
-- PR title: short, under 70 characters. Use the body for details.
-- Before merging, all of these must pass:
-  - Backend: `npm run test -- --runInBand`, `npm run build`, `npx eslint "{src,apps,libs,test}/**/*.ts"`
-  - Frontend: `npm run build`, `npm run lint`
+# Infrastructure
+docker compose up -d             # Postgres + Redis
+npx prisma migrate deploy        # apply migrations
+npm run seed                     # seed demo data
+```
 
----
+## Architecture
 
-## Architecture Rules (from audit)
+### Module Structure
 
-These rules were established during the API audit. They must be followed
-in all future changes.
+```
+src/
+├── app.module.ts          # Root — registers all modules
+├── main.ts / create-app.ts # Bootstrap (Helmet, CORS, ValidationPipe, Swagger)
+├── config/                # Environment validation
+├── prisma/                # PrismaService (global)
+├── casl/                  # CASL permission factory (global)
+├── auth/                  # Signup, signin, signout, refresh, forgot/reset password
+├── products/              # CRUD + variants/SKUs + images (S3)
+├── categories/            # CRUD for managers, read for all
+├── cart/                  # Add/update/remove items, auto-create cart
+├── orders/                # Create from cart, status machine, delivery assignment
+├── payments/              # Stripe PaymentIntent + Checkout + refunds
+├── webhooks/              # Stripe webhook handler (payment success/failure)
+├── promo-codes/           # Create/update (manager), preview (client)
+├── delivery/              # Delivery person: list assigned, mark delivered
+├── addresses/             # Client shipping addresses
+├── likes/                 # Product wishlist
+├── notifications/         # Low-stock alerts, order notifications
+└── storage/               # S3 upload/download/presigned URLs
+```
+
+### Database Schema (Prisma)
+
+Core models: User, Role, Product, ProductVariant, Category, Cart, CartItem,
+Order, OrderItem, Payment, PromoCode, PromoCodeRedemption, Address,
+InventoryMovement, OrderStatusHistory, Notification, StripeWebhookEvent.
+
+- **Soft deletes**: Products use `deletedAt` + `status: disabled`
+- **Audit trails**: OrderStatusHistory, InventoryMovement
+- **Token security**: RefreshToken and PasswordResetToken stored as SHA-256 hashes
+
+### Auth Flow
+
+- JWT access token (1d expiry) with payload: `{ sub, email, role }`
+- Refresh token: 64-byte hex, stored as hash, 7-day expiry, rotation on use
+- Password reset: 32-byte hex token, 1-hour TTL, one-time use
+- JwtStrategy.validate() checks user exists AND `status === 'active'` on every request
+
+### Order State Machine
+
+```
+pending → cancelled
+paid → processing | cancelled
+processing → shipped | cancelled
+shipped → delivered
+```
+
+### Data Flows
+
+**Cart → Order → Payment:**
+1. Client adds items to cart (`POST /cart/items`)
+2. Client creates order (`POST /orders`) — stock reserved inside transaction with FOR UPDATE lock
+3. Client pays via PaymentIntent or Checkout link
+4. Webhook confirms payment → order status changes to `paid`
+5. If no payment in 2h → cron auto-cancels and restores stock
+
+**Direct Purchase (payment link):**
+1. `POST /payments/payment-link` creates order + reserves stock in one transaction
+2. Stripe Checkout handles payment
+3. Webhook confirms → status changes to `paid`
+
+**Cancellation (any path):**
+1. Stock restored (`increment`)
+2. InventoryMovement created (type: `cancellation`)
+3. PromoCodeRedemption deleted
+4. Refund triggered if order was paid
+
+## Coding Standards
 
 ### Transactions and Concurrency
 
-- **$transaction gives atomicity, NOT concurrency control.** Prisma uses
-  READ COMMITTED by default — two transactions can read the same row
-  before either updates it.
-- **Use SELECT ... FOR UPDATE** inside `$transaction` when a row must not
-  be read by concurrent requests. Example: cart-to-order conversion.
-- **Never use a hardcoded schema name** in raw SQL. Prisma sets
-  `search_path` via the `?schema=` param in DATABASE_URL. Use just the
-  table name (e.g., `"carts"` not `"tshirt_store"."carts"`).
-- **Never read a row outside a transaction and act on it inside.** If the
-  state matters (cart status, stock count), read it inside the tx.
-- Read-only ownership checks (e.g., address belongs to user) can stay
-  outside the transaction — they don't change state and don't benefit
-  from locking.
+- `$transaction` gives atomicity (all or nothing), NOT concurrency control.
+- Use `SELECT ... FOR UPDATE` inside `$transaction` when a row must not be
+  read by concurrent requests (e.g., cart-to-order conversion).
+- Never hardcode schema names in raw SQL — Prisma sets `search_path`
+  automatically. Use `"carts"` not `"tshirt_store"."carts"`.
+- Read-only ownership checks (address belongs to user) can stay outside
+  the transaction.
 
 ### Stock and Inventory
 
-- **Stock is reserved at order creation**, not at payment. This is the
-  standard e-commerce pattern that prevents overselling.
-- **Every code path that decrements stock must have a restore path:**
-  - Manual cancellation → `updateStatus()` restores with `increment`
-  - Payment failure (webhook) → `processPaymentFailure()` restores
-  - Abandoned orders → `OrdersCleanupService` cron restores after 2h
-- **All stock operations** (decrement, increment, inventory movements)
-  must happen inside a `$transaction`.
-- When adding a new order-creation path (like `createPaymentLink`),
-  it MUST include stock reservation inside a transaction.
+- Stock is reserved at order creation, not at payment.
+- Every code path that decrements stock must have a corresponding restore
+  path (cancel, payment failure, abandoned order cron).
+- All stock operations must happen inside a `$transaction`.
+- When adding a new order-creation path, it MUST include stock reservation.
 
 ### Promo Codes
 
-- **PromoCodeRedemption must be deleted** when an order is cancelled,
-  payment fails, or the order is auto-cancelled by the cron.
-- **Per-user limit**: one use per user per promo code. Check with
-  `promoCodeRedemption.findFirst({ where: { promoCodeId, userId } })`.
-- The same validation must exist in both `orders.service.ts create()`
-  and `promo-codes.service.ts previewForCart()`.
+- `PromoCodeRedemption` must be deleted on any cancellation path.
+- One use per user per promo code — check with `findFirst({ promoCodeId, userId })`.
+- Same validation in `orders.service.ts create()` and `promo-codes.service.ts previewForCart()`.
 
 ### Product Lifecycle
 
-- **Soft-delete must cascade**: when a product is soft-deleted, all its
-  variants must be set to `isActive: false` in the same transaction.
-- **Cart validation must check three things**: `sku.isActive`,
-  `sku.product.deletedAt`, AND `sku.product.status === 'active'`.
-- **Likes must also check** `product.status === 'active'`.
+- Soft-delete cascades: product deleted → all variants set `isActive: false`.
+- Cart validation checks three things: `sku.isActive`, `sku.product.deletedAt`,
+  AND `sku.product.status === 'active'`.
+- Likes also check `product.status === 'active'`.
 
 ### Idempotency
 
-- **Webhook handlers**: use try/catch on the `create` call and catch
-  P2002 (unique constraint). Do NOT use `findUnique` + `create`
-  separately — that has a race condition.
-- **PaymentIntent creation**: always check for an existing pending
-  payment before creating a new one in Stripe. Retrieve from Stripe
-  to verify it's still active before reusing.
+- Webhook handlers: try/catch on `create`, catch P2002 (unique constraint).
+  Never `findUnique` + `create` separately.
+- PaymentIntent: check for existing pending payment before creating new one in Stripe.
 
 ### API Design
 
-- **Static routes before dynamic routes** in controllers. Example:
-  `GET /orders/delivery-persons` must be defined BEFORE
-  `GET /orders/:orderId`, or NestJS will try to parse
-  "delivery-persons" as an integer.
-- **Consistent response shapes**: list and detail endpoints for the
-  same resource must return the same field structure (Number for
-  decimals, flattened customer/address objects, etc).
-- **Pagination on all list endpoints**: use `{ data, meta: { page,
-  limit, totalItems, totalPages } }` pattern.
-- **Quantity limits**: cart items max 99 per SKU.
+- Static routes before dynamic routes in controllers
+  (`GET /delivery-persons` before `GET /:orderId`).
+- Consistent response shapes for list and detail (Number for decimals, flattened objects).
+- All list endpoints paginated: `{ data, meta: { page, limit, totalItems, totalPages } }`.
+- Cart items max 99 per SKU.
+- Use `toMoney()` from `src/common/utils/money.ts` for Decimal → number.
 
-### Delivery System
+### Guards and Authorization
 
-- `MAX_ACTIVE_DELIVERIES = 5` in `src/common/constants/delivery.constants.ts`.
-- Only assign delivery to orders in `paid` or `processing` status.
-- Validate that the user exists, has role `delivery_person`, and is active.
-- `GET /orders/delivery-persons` returns workload dashboard for managers.
+- Every protected endpoint needs `@UseGuards(JwtAuthGuard)`.
+- Role-restricted endpoints add `@Roles('manager')` + `@UseGuards(RolesGuard)`.
+- Fine-grained permissions use `@RequireAbility('action', 'Subject')` + `PoliciesGuard`.
+- Roles: `manager` (full CRUD), `client` (own data), `delivery_person` (assigned orders).
 
-### Decimal Handling
+### Constants
 
-- Use `toMoney()` from `src/common/utils/money.ts` for all Prisma
-  Decimal → number conversions. Rounds to 2 decimal places.
+- `MAX_ACTIVE_DELIVERIES = 5` — `src/common/constants/delivery.constants.ts`
+- `LOW_STOCK_THRESHOLD = 3` — `src/common/constants/inventory.constants.ts`
+- `ABANDONED_ORDER_HOURS = 2` — `src/common/constants/order.constants.ts`
 
----
-
-## Testing Rules
+## Testing Standards
 
 ### Unit Tests
 
-- When using `$queryRaw` in a service, add `$queryRaw: jest.fn()` to
-  the prisma mock object.
-- When adding a new Prisma model method (e.g., `deleteMany` on
-  `promoCodeRedemption`), add it to the mock.
-- When changing response shapes (e.g., adding `user` relation to
-  `findOne`), update the test mocks to include those fields.
+- Mock `$queryRaw` when service uses raw SQL.
 - Mock `$transaction` to support both callback and array forms:
   ```typescript
   $transaction: jest.fn((input) =>
     Array.isArray(input) ? Promise.all(input) : input(prisma),
   ),
   ```
+- When adding a new Prisma method (e.g., `deleteMany`), add it to the mock.
+- When changing response shapes, update test mocks to include new fields.
 
 ### E2E Tests
 
-- Use `execSync` not `execFileSync` for npx commands (ENOENT on some platforms).
-- Test database uses schema `tshirt_store_test` via `TEST_DATABASE_URL`.
-- Add `transformIgnorePatterns` to `jest-e2e.json` for ESM-only packages:
+- Test schema: `tshirt_store_test` via `TEST_DATABASE_URL`.
+- Use `execSync` not `execFileSync` for npx commands.
+- Add `transformIgnorePatterns` for ESM packages in `jest-e2e.json`:
   ```json
   "transformIgnorePatterns": ["node_modules/(?!(@nestjs/schedule)/)"]
   ```
 
-### Playwright Tests
+### Playwright
 
-- Config at `playwright.config.ts` with `video: 'on'`, `trace: 'on'`.
-- Test file at `test/demo-recording.spec.ts`.
-- Each test renders an HTML page showing request/response for video evidence.
-- Stress tests (concurrency) must use bash with `&` for true parallelism
-  — Playwright `request` and Node.js `Promise.all` serialize requests.
+- Config: `playwright.config.ts` with `video: 'on'`.
+- Tests: `test/demo-recording.spec.ts`.
+- Stress tests need bash with `&` for true parallelism.
 
----
+## Branch and PR Conventions
+
+- Branch naming: `<type>/<short-description>` (e.g., `fix/cart-quantity-validation`).
+- Commit messages: imperative mood, under 72 chars.
+- Before merging, all must pass:
+  - `npm run test -- --runInBand`
+  - `npm run build`
+  - `npx eslint "{src,apps,libs,test}/**/*.ts"`
+  - E2E tests (when DB available)
 
 ## Available Skills
 
-Use these skills when the task matches their purpose:
-
-- `/investigate-task` — Research a bug or improvement before writing code.
-- `/verify-change` — Run targeted checks after a fix.
-- `/api-contract-check` — Verify backend DTOs and frontend types agree.
-- `/docs-sync` — Check whether documentation needs updates.
-- `/db-check` — Verify Prisma schema, migrations, and DTOs are in sync.
-- `/security-check` — Check for missing guards and unsafe patterns.
-- `/test-coverage` — Check test coverage for a module.
-- `/env-check` — Verify environment variables are present.
+- `/investigate-task` — Research a bug before writing code
+- `/verify-change` — Run checks after a fix
+- `/api-contract-check` — Verify backend/frontend types match
+- `/db-check` — Verify Prisma schema and DTOs are in sync
+- `/security-check` — Check for missing guards and unsafe patterns
+- `/test-coverage` — Find untested critical paths
+- `/env-check` — Verify environment variables
+- `/docs-sync` — Check if docs need updates
