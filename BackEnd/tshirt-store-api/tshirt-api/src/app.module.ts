@@ -7,6 +7,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { LoggerModule } from 'nestjs-pino';
 // ThrottlerModule: protección contra abuso (rate limiting) — limita peticiones por IP
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 // CaslModule: sistema de permisos basado en roles (quién puede hacer qué)
 import { CaslModule } from './casl/casl.module';
@@ -31,6 +32,7 @@ import { validateEnv } from './config/env.validation';
   imports: [
     // isGlobal: true — hace que ConfigService esté disponible en TODOS los módulos sin reimportarlo
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
+    ScheduleModule.forRoot(),
     LoggerModule.forRoot({
       pinoHttp: {
         level: process.env.LOG_LEVEL ?? 'info',

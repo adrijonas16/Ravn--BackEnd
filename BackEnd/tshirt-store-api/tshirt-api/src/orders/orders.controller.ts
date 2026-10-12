@@ -17,6 +17,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { ListOrdersQueryDto } from './dto/list-orders-query.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
+import { AssignDeliveryDto } from './dto/assign-delivery.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard, Roles } from '../common/guards/roles.guard';
 import { RequireAbility } from '../common/decorators/require-ability.decorator';
@@ -59,6 +60,19 @@ export class OrdersController {
     return this.ordersService.findAll(user, query);
   }
 
+  // GET /orders/delivery-persons — lista repartidores con carga de trabajo
+  // IMPORTANTE: debe ir ANTES de :orderId para que NestJS no lo confunda con un ID
+  @Get('delivery-persons')
+  @Roles('manager')
+  @RequireAbility('update', 'Order')
+  @UseGuards(RolesGuard, PoliciesGuard)
+  @ApiOperation({
+    summary: 'List delivery persons with workload (manager only)',
+  })
+  getDeliveryWorkload() {
+    return this.ordersService.getDeliveryWorkload();
+  }
+
   // GET /orders/:orderId — detalle de una orden (el service valida permisos)
   @Get(':orderId')
   @RequireAbility('read', 'Order')
@@ -88,6 +102,21 @@ export class OrdersController {
       user,
       reason: dto.reason,
     });
+  }
+
+  // PATCH /orders/:orderId/assign-delivery — solo managers asignan repartidor
+  @Patch(':orderId/assign-delivery')
+  @Roles('manager')
+  @RequireAbility('update', 'Order')
+  @UseGuards(RolesGuard, PoliciesGuard)
+  @ApiOperation({
+    summary: 'Assign a delivery person to an order (manager only)',
+  })
+  assignDelivery(
+    @Param('orderId', ParseIntPipe) orderId: number,
+    @Body() dto: AssignDeliveryDto,
+  ) {
+    return this.ordersService.assignDelivery(orderId, dto.deliveryUserId);
   }
 
   // POST /orders/:orderId/cancel — cualquier usuario autenticado puede intentar cancelar

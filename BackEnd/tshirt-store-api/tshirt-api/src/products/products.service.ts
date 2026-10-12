@@ -5,6 +5,7 @@ import {
   Optional,
   BadRequestException,
 } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -45,22 +46,35 @@ export class ProductsService {
     if (!category) throw new NotFoundException('Category not found');
 
     // Genera un slug URL-friendly a partir del nombre (ej: "Camiseta Azul" → "camiseta-azul-k5f3")
-    const slug = this.generateSlug(dto.name);
+    // Si hay colisión de slug (unique constraint), reintenta con un sufijo diferente
+    const createData = {
+      name: dto.name,
+      slug: this.generateSlug(dto.name),
+      description: dto.description,
+      categoryId: dto.categoryId,
+    };
+    const includeOpts = {
+      category: true as const,
+      images: true as const,
+      variants: { include: { size: true, color: true } },
+    };
 
-    // include: trae las relaciones asociadas (categoría, imágenes, variantes) en la misma consulta
-    return this.prisma.product.create({
-      data: {
-        name: dto.name,
-        slug,
-        description: dto.description,
-        categoryId: dto.categoryId,
-      },
-      include: {
-        category: true,
-        images: true,
-        variants: { include: { size: true, color: true } },
-      },
-    });
+    try {
+      return await this.prisma.product.create({
+        data: createData,
+        include: includeOpts,
+      });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        // Colisión de slug: regenera con sufijo random y reintenta
+        createData.slug = this.generateSlug(dto.name);
+        return this.prisma.product.create({
+          data: createData,
+          include: includeOpts,
+        });
+      }
+      throw error;
+    }
   }
 
   // Listado con paginación y filtros opcionales (categoría, búsqueda por nombre)
@@ -85,7 +99,7 @@ export class ProductsService {
     if (search) where.name = { contains: search, mode: 'insensitive' };
 
     // Promise.all ejecuta ambas consultas en paralelo para mayor velocidad
-    const [data, totalItems] = await Promise.all([
+    const [products, totalItems] = await Promise.all([
       this.prisma.product.findMany({
         where,
         skip,
@@ -113,7 +127,7 @@ export class ProductsService {
 
     // Transforma los datos de Prisma al formato que espera el cliente (API response)
     return {
-      data: data.map((p) => ({
+      products: products.map((p) => ({
         id: p.id,
         name: p.name,
         slug: p.slug,
@@ -180,12 +194,19 @@ export class ProductsService {
   }
 
   // Soft delete: no borra de la DB, solo marca fecha de eliminación y desactiva
+  // También desactiva todas las variantes para que no se puedan agregar al carrito
   async remove(id: number) {
     await this.findOne(id);
-    await this.prisma.product.update({
-      where: { id },
-      data: { deletedAt: new Date(), status: 'disabled' },
-    });
+    await this.prisma.$transaction([
+      this.prisma.productVariant.updateMany({
+        where: { productId: id },
+        data: { isActive: false },
+      }),
+      this.prisma.product.update({
+        where: { id },
+        data: { deletedAt: new Date(), status: 'disabled' },
+      }),
+    ]);
   }
 
   // ─── Product variants ──────────────────────────────────────────
@@ -219,22 +240,25 @@ export class ProductsService {
 
   async findVariants(productId: number) {
     await this.findOne(productId);
-    return this.prisma.productVariant.findMany({
+    const variants = await this.prisma.productVariant.findMany({
       where: { productId },
       include: { size: true, color: true },
     });
+    return { variants };
   }
 
   async listSizes() {
-    return this.prisma.size.findMany({
+    const sizes = await this.prisma.size.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
+    return { sizes };
   }
 
   async listColors() {
-    return this.prisma.color.findMany({
+    const colors = await this.prisma.color.findMany({
       orderBy: { name: 'asc' },
     });
+    return { colors };
   }
 
   async updateVariant(command: UpdateProductVariantCommandDto) {
@@ -431,14 +455,14 @@ export class ProductsService {
     return `${publicApiUrl.replace(/\/$/, '')}/api/v1/products/images/file?key=${encodeURIComponent(storageKey)}`;
   }
 
-  // Genera un slug único: "Camiseta Azul" → "camiseta-azul-k5f3x2"
-  // El sufijo con timestamp base-36 evita colisiones de nombres duplicados
+  // Genera un slug único: "Camiseta Azul" → "camiseta-azul-k5f3x2-a1b2"
+  // Usa timestamp + 3 bytes random para minimizar colisiones
   private generateSlug(name: string): string {
     const base = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
-    const suffix = Date.now().toString(36);
+    const suffix = Date.now().toString(36) + randomBytes(3).toString('hex');
     return `${base}-${suffix}`;
   }
 }

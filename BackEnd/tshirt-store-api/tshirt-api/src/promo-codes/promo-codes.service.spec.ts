@@ -16,7 +16,10 @@ describe('PromoCodesService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
       },
-      promoCodeRedemption: { count: jest.fn() },
+      promoCodeRedemption: {
+        count: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     };
     service = new PromoCodesService(prisma);
   });

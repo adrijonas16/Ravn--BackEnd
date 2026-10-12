@@ -19,7 +19,7 @@ export class PromoCodesService {
     const limit = Number(params.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const [data, totalItems] = await Promise.all([
+    const [promoCodes, totalItems] = await Promise.all([
       this.prisma.promoCode.findMany({
         skip,
         take: limit,
@@ -32,7 +32,7 @@ export class PromoCodesService {
     ]);
 
     return {
-      data: data.map((promo) => this.formatPromoCode(promo)),
+      promoCodes: promoCodes.map((promo) => this.formatPromoCode(promo)),
       meta: {
         page,
         limit,
@@ -136,6 +136,13 @@ export class PromoCodesService {
     });
     if (redemptionCount >= promo.usageLimit) {
       throw new BadRequestException('Promo code usage limit reached');
+    }
+
+    const userRedemption = await this.prisma.promoCodeRedemption.findFirst({
+      where: { promoCodeId: promo.id, userId },
+    });
+    if (userRedemption) {
+      throw new BadRequestException('You have already used this promo code');
     }
 
     const rawDiscount =

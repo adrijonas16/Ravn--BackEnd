@@ -16,7 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { PrismaClient } from '@prisma/client';
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import Stripe from 'stripe';
 import { AppModule } from '../src/app.module';
 
@@ -35,7 +35,7 @@ function createTestPrisma(): PrismaClient {
 }
 
 function prepareTestDatabase(): void {
-  execFileSync('npx', ['prisma', 'db', 'push', '--skip-generate'], {
+  execSync('npx prisma db push --skip-generate', {
     cwd: process.cwd(),
     env: { ...process.env, DATABASE_URL: TEST_DB_URL },
     stdio: 'pipe',

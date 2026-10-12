@@ -174,7 +174,10 @@ export class AuthService {
       include: { role: true },
     });
 
-    return { user: this.toPublicUser(user) };
+    // Regenera el access token para que el payload refleje los datos actualizados
+    const accessToken = this.generateToken(user.id, user.email, user.role.name);
+
+    return { user: this.toPublicUser(user), accessToken };
   }
 
   async forgotPassword(email: string) {

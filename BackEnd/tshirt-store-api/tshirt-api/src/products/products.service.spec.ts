@@ -32,8 +32,11 @@ describe('ProductsService', () => {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(),
       },
-      $transaction: jest.fn((callback) => callback(prisma)),
+      $transaction: jest.fn((input) =>
+        Array.isArray(input) ? Promise.all(input) : input(prisma),
+      ),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -103,7 +106,7 @@ describe('ProductsService', () => {
 
       const result = await service.findAll({ page: 1, limit: 20 });
 
-      expect(result.data).toHaveLength(1);
+      expect(result.products).toHaveLength(1);
       expect(result.meta.totalItems).toBe(1);
       expect(result.meta.page).toBe(1);
     });
@@ -179,12 +182,17 @@ describe('ProductsService', () => {
   });
 
   describe('remove', () => {
-    it('should soft-delete a product', async () => {
+    it('should soft-delete a product and deactivate its variants', async () => {
       prisma.product.findFirst.mockResolvedValue({ id: 1 });
+      prisma.productVariant.updateMany.mockResolvedValue({ count: 3 });
       prisma.product.update.mockResolvedValue({});
 
       await service.remove(1);
 
+      expect(prisma.productVariant.updateMany).toHaveBeenCalledWith({
+        where: { productId: 1 },
+        data: { isActive: false },
+      });
       expect(prisma.product.update).toHaveBeenCalledWith({
         where: { id: 1 },
         data: expect.objectContaining({
@@ -270,7 +278,7 @@ describe('ProductsService', () => {
 
       const result = await service.listSizes();
 
-      expect(result).toHaveLength(1);
+      expect(result.sizes).toHaveLength(1);
       expect(prisma.size.findMany).toHaveBeenCalledWith({
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       });
@@ -281,7 +289,7 @@ describe('ProductsService', () => {
 
       const result = await service.listColors();
 
-      expect(result).toHaveLength(1);
+      expect(result.colors).toHaveLength(1);
       expect(prisma.color.findMany).toHaveBeenCalledWith({
         orderBy: { name: 'asc' },
       });
