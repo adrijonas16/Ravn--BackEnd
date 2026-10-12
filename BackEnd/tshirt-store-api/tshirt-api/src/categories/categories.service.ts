@@ -12,10 +12,11 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.category.findMany({
+  async findAll() {
+    const categories = await this.prisma.category.findMany({
       orderBy: { name: 'asc' },
     });
+    return { categories };
   }
 
   async create(dto: CreateCategoryDto) {

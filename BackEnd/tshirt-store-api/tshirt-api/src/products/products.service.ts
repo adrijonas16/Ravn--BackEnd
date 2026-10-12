@@ -240,22 +240,25 @@ export class ProductsService {
 
   async findVariants(productId: number) {
     await this.findOne(productId);
-    return this.prisma.productVariant.findMany({
+    const variants = await this.prisma.productVariant.findMany({
       where: { productId },
       include: { size: true, color: true },
     });
+    return { variants };
   }
 
   async listSizes() {
-    return this.prisma.size.findMany({
+    const sizes = await this.prisma.size.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
+    return { sizes };
   }
 
   async listColors() {
-    return this.prisma.color.findMany({
+    const colors = await this.prisma.color.findMany({
       orderBy: { name: 'asc' },
     });
+    return { colors };
   }
 
   async updateVariant(command: UpdateProductVariantCommandDto) {

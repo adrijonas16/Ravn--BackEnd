@@ -12,11 +12,12 @@ import { UpdateAddressCommandDto } from './dto/update-address-command.dto';
 export class AddressesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll(userId: number) {
-    return this.prisma.address.findMany({
+  async findAll(userId: number) {
+    const addresses = await this.prisma.address.findMany({
       where: { userId },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
     });
+    return { addresses };
   }
 
   async create(userId: number, dto: CreateAddressDto) {

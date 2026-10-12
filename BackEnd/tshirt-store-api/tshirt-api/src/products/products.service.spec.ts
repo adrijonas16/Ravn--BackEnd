@@ -278,7 +278,7 @@ describe('ProductsService', () => {
 
       const result = await service.listSizes();
 
-      expect(result).toHaveLength(1);
+      expect(result.sizes).toHaveLength(1);
       expect(prisma.size.findMany).toHaveBeenCalledWith({
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       });
@@ -289,7 +289,7 @@ describe('ProductsService', () => {
 
       const result = await service.listColors();
 
-      expect(result).toHaveLength(1);
+      expect(result.colors).toHaveLength(1);
       expect(prisma.color.findMany).toHaveBeenCalledWith({
         orderBy: { name: 'asc' },
       });
