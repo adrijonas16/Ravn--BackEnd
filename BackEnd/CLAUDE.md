@@ -156,14 +156,78 @@ shipped → delivered
   Never `findUnique` + `create` separately.
 - PaymentIntent: check for existing pending payment before creating new one in Stripe.
 
-### API Design
+### API Response Standards
+
+**Naming**: Every response must use a descriptive key for its content, not
+generic `data`. The key should reflect what the endpoint returns:
+
+```typescript
+// GOOD — descriptive keys
+{ products: [...], meta: {...} }
+{ order: { id, orderNumber, ... } }
+{ cart: { id, items, totalAmount } }
+{ categories: [...] }
+{ deliveryPersons: [...] }
+{ accessToken: "...", refreshToken: "...", user: {...} }
+
+// BAD — generic "data"
+{ data: [...], meta: {...} }
+{ data: { id, orderNumber, ... } }
+```
+
+**List endpoints** return `{ <plural-name>: [...], meta: { page, limit, totalItems, totalPages } }`.
+
+**Detail endpoints** return `{ <singular-name>: { ... } }` with the same
+field shape as the list items (Number for decimals, flattened relations).
+
+**Action endpoints** return a descriptive result:
+```typescript
+// Auth
+{ accessToken, refreshToken, user }
+
+// Mutations that return the updated entity
+{ order: { ... } }
+
+// Actions with a message
+{ message: "Password reset successfully" }
+
+// Payment
+{ clientSecret, paymentIntentId, amount, currency }
+{ paymentLinkUrl, orderId }
+```
+
+**Error responses** always follow: `{ statusCode, message, error }`.
+
+**Decimal fields**: always convert to `number` using `toMoney()` before
+returning. Never return raw Prisma `Decimal` objects.
+
+**Null vs undefined**: use `null` for intentionally empty fields in
+responses (e.g., `deliveryPerson: null`). Never return `undefined`.
+
+**Dates**: return as ISO strings (`createdAt: "2026-10-09T..."`) — this is
+Prisma's default behavior, don't override it.
+
+### API Routing
 
 - Static routes before dynamic routes in controllers
   (`GET /delivery-persons` before `GET /:orderId`).
-- Consistent response shapes for list and detail (Number for decimals, flattened objects).
-- All list endpoints paginated: `{ data, meta: { page, limit, totalItems, totalPages } }`.
+- All path params use `ParseIntPipe` for integer IDs.
 - Cart items max 99 per SKU.
 - Use `toMoney()` from `src/common/utils/money.ts` for Decimal → number.
+
+### Naming Conventions
+
+- **Files**: kebab-case (`orders-cleanup.service.ts`, `assign-delivery.dto.ts`).
+- **Classes**: PascalCase (`OrdersService`, `AssignDeliveryDto`).
+- **Methods**: camelCase (`findAll`, `createPaymentIntent`, `getDeliveryWorkload`).
+- **DTOs**: describe the action (`CreateOrderDto`, `UpdateProductVariantDto`,
+  `ListOrdersQueryDto`). Command DTOs for internal use add `Command`
+  suffix (`UpdateOrderStatusCommandDto`).
+- **Constants**: UPPER_SNAKE_CASE (`MAX_ACTIVE_DELIVERIES`, `LOW_STOCK_THRESHOLD`).
+- **Database columns**: snake_case via `@map()` in Prisma schema.
+- **API paths**: kebab-case (`/delivery-persons`, `/assign-delivery`).
+- **Endpoints**: use resource nouns, not verbs. Action endpoints use
+  `POST /orders/:id/cancel` not `POST /cancel-order/:id`.
 
 ### Guards and Authorization
 
