@@ -266,7 +266,7 @@ export class OrdersService {
       if (maxAmount !== undefined) where.totalAmount.lte = maxAmount;
     }
 
-    const [data, totalItems] = await Promise.all([
+    const [orders, totalItems] = await Promise.all([
       this.prisma.order.findMany({
         where,
         skip,
@@ -299,7 +299,7 @@ export class OrdersService {
     ]);
 
     return {
-      data: data.map((o) => ({
+      orders: orders.map((o) => ({
         id: o.id,
         orderNumber: o.orderNumber,
         currentStatus: o.currentStatus,

@@ -106,7 +106,7 @@ describe('ProductsService', () => {
 
       const result = await service.findAll({ page: 1, limit: 20 });
 
-      expect(result.data).toHaveLength(1);
+      expect(result.products).toHaveLength(1);
       expect(result.meta.totalItems).toBe(1);
       expect(result.meta.page).toBe(1);
     });

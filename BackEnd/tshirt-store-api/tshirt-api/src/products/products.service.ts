@@ -99,7 +99,7 @@ export class ProductsService {
     if (search) where.name = { contains: search, mode: 'insensitive' };
 
     // Promise.all ejecuta ambas consultas en paralelo para mayor velocidad
-    const [data, totalItems] = await Promise.all([
+    const [products, totalItems] = await Promise.all([
       this.prisma.product.findMany({
         where,
         skip,
@@ -127,7 +127,7 @@ export class ProductsService {
 
     // Transforma los datos de Prisma al formato que espera el cliente (API response)
     return {
-      data: data.map((p) => ({
+      products: products.map((p) => ({
         id: p.id,
         name: p.name,
         slug: p.slug,

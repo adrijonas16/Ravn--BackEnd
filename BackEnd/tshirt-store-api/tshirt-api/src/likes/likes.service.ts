@@ -57,7 +57,7 @@ export class LikesService {
     ]);
 
     return {
-      data: likes.map(({ product }) => ({
+      products: likes.map(({ product }) => ({
         id: product.id,
         name: product.name,
         slug: product.slug,

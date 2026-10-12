@@ -9,7 +9,7 @@ export class NotificationsService {
   async findAll(userId: number, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
 
-    const [data, totalItems] = await Promise.all([
+    const [notifications, totalItems] = await Promise.all([
       this.prisma.notification.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
@@ -32,7 +32,7 @@ export class NotificationsService {
     ]);
 
     return {
-      data,
+      notifications,
       meta: {
         page,
         limit,
