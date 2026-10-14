@@ -26,12 +26,14 @@ For project paths and commands, read `../reference.md`.
 
 ## Steps
 
+**NEVER print, log, or include actual secret values in any output or step below.**
+
 1. Read `.env.example` to identify all expected variables.
-2. Read `.env` to identify which variables are set.
+2. Read `.env` to identify which variables are set (report variable names only, never values).
 3. Compare and report:
    - Variables in `.env.example` but missing from `.env`.
    - Variables in `.env` but not in `.env.example` (may need documenting).
-4. Validate format WITHOUT exposing values:
+4. Validate format without exposing values:
    - `DATABASE_URL`: starts with `postgresql://`, contains host/port/db.
    - `JWT_SECRET`: is set and non-empty.
    - `STRIPE_SECRET_KEY`: starts with `sk_test_` or `sk_live_`.
