@@ -395,6 +395,7 @@ describe('T-Shirt Store E2E', () => {
       expect(res.body.items).toHaveLength(1);
       expect(res.body.items[0].productVariantId).toBe(variantId);
       expect(res.body.items[0].quantity).toBe(2);
+      expect(res.body.items[0].stock).toBe(100);
     });
 
     it('should create an order from the cart (POST /orders)', async () => {

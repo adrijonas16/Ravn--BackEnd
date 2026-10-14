@@ -24,8 +24,14 @@ export default function CartPage() {
   };
 
   const updateQuantity = async (itemId: number, quantity: number) => {
+    const item = cart?.items.find((cartItem) => cartItem.id === itemId);
+    if (!item) return;
+
+    const nextQuantity = Math.max(1, Math.min(item.stock, quantity));
+    if (nextQuantity === item.quantity) return;
+
     try {
-      const { data } = await cartApi.updateItem(itemId, quantity);
+      const { data } = await cartApi.updateItem(itemId, nextQuantity);
       setCart(data);
       window.dispatchEvent(new Event('cart:updated'));
     } catch { /* ignore */ }
@@ -86,9 +92,22 @@ export default function CartPage() {
                 </div>
 
                 <div className="cart-page__quantity">
-                  <button onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))} aria-label={`Decrease quantity for ${item.productName}`}><Minus size={14} /></button>
+                  <button
+                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                    disabled={item.quantity <= 1}
+                    aria-label={`Decrease quantity for ${item.productName}`}
+                  >
+                    <Minus size={14} />
+                  </button>
                   <strong>{item.quantity}</strong>
-                  <button onClick={() => updateQuantity(item.id, item.quantity + 1)} aria-label={`Increase quantity for ${item.productName}`}><Plus size={14} /></button>
+                  <button
+                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                    disabled={item.quantity >= item.stock}
+                    aria-label={`Increase quantity for ${item.productName}`}
+                    title={item.quantity >= item.stock ? `Only ${item.stock} in stock` : undefined}
+                  >
+                    <Plus size={14} />
+                  </button>
                 </div>
 
                 <strong className="cart-page__price">${item.lineTotal.toFixed(2)}</strong>
